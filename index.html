@@ -3,10 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Réalité Augmentée Sans Marqueur</title>
-  <!-- A-Frame pour RA -->
+  <title>Projection en RA avec Images</title>
+  <!-- A-Frame et AR.js -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-  <!-- AR.js -->
   <script src="https://cdn.jsdelivr.net/gh/jeromeetienne/ar.js/aframe/build/aframe-ar.min.js"></script>
   <style>
     body, html {
@@ -14,35 +13,86 @@
       overflow: hidden;
       height: 100%;
     }
+    #ui {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      background: rgba(255, 255, 255, 0.8);
+      padding: 10px;
+      border-radius: 8px;
+      z-index: 1000;
+      font-family: Arial, sans-serif;
+    }
+    #ui input[type="range"] {
+      width: 100%;
+    }
+    #ui input[type="file"] {
+      margin-bottom: 10px;
+    }
   </style>
 </head>
 <body>
-  <!-- Scène A-Frame avec AR.js -->
+  <!-- Interface Utilisateur -->
+  <div id="ui">
+    <label for="image-input">Importer une image :</label>
+    <input type="file" id="image-input" accept="image/*"><br>
+    <label for="scale-slider">Taille :</label>
+    <input type="range" id="scale-slider" min="0.1" max="3" step="0.1" value="1">
+  </div>
+
+  <!-- Scène A-Frame -->
   <a-scene
     vr-mode-ui="enabled: false"
     embedded
     arjs="sourceType: webcam; debugUIEnabled: false;">
     
-    <!-- Indicateur de surface (plan transparent pour la détection) -->
+    <!-- Surface de détection -->
     <a-plane 
       position="0 0 0" 
       rotation="-90 0 0" 
       width="5" 
       height="5" 
-      color="#000000" 
+      color="#cccccc" 
       opacity="0.5">
     </a-plane>
 
-    <!-- Objet 3D (une boîte simple) -->
-    <a-box 
+    <!-- Conteneur pour l'image projetée -->
+    <a-image 
+      id="projected-image" 
       position="0 0.5 0" 
-      rotation="0 45 0" 
-      color="blue" 
-      shadow></a-box>
+      scale="1 1 1" 
+      visible="false">
+    </a-image>
 
     <!-- Lumières -->
     <a-light type="ambient" intensity="0.5"></a-light>
     <a-light type="point" intensity="1" position="2 4 4"></a-light>
   </a-scene>
+
+  <script>
+    // Références aux éléments HTML et A-Frame
+    const imageInput = document.getElementById('image-input');
+    const scaleSlider = document.getElementById('scale-slider');
+    const projectedImage = document.getElementById('projected-image');
+
+    // Gestion de l'importation d'images
+    imageInput.addEventListener('change', (event) => {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          projectedImage.setAttribute('src', e.target.result);
+          projectedImage.setAttribute('visible', 'true');
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    // Gestion du redimensionnement
+    scaleSlider.addEventListener('input', (event) => {
+      const scaleValue = event.target.value;
+      projectedImage.setAttribute('scale', `${scaleValue} ${scaleValue} ${scaleValue}`);
+    });
+  </script>
 </body>
 </html>
