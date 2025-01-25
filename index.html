@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Projection RA avec Fixation</title>
+  <title>Projection RA Fixée</title>
   <!-- A-Frame et AR.js -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/jeromeetienne/ar.js/aframe/build/aframe-ar.min.js"></script>
@@ -47,11 +47,21 @@
     arjs="sourceType: webcam; debugUIEnabled: false;"
     cursor="rayOrigin: mouse">
     
+    <!-- Marqueur virtuel initial -->
+    <a-circle 
+      id="virtual-marker" 
+      color="yellow" 
+      position="0 0.1 -1" 
+      radius="0.1">
+    </a-circle>
+
     <!-- Conteneur pour l'image projetée -->
     <a-image 
       id="projected-image" 
+      src="" 
       scale="1 1 1" 
-      visible="false">
+      visible="false" 
+      position="0 0.1 -1">
     </a-image>
 
     <!-- Lumières -->
@@ -64,6 +74,7 @@
     const imageInput = document.getElementById('image-input');
     const scaleSlider = document.getElementById('scale-slider');
     const projectedImage = document.getElementById('projected-image');
+    const virtualMarker = document.getElementById('virtual-marker');
     const scene = document.querySelector('a-scene');
 
     let isImageLoaded = false; // Vérifie si une image est chargée
@@ -75,6 +86,8 @@
         const reader = new FileReader();
         reader.onload = (e) => {
           projectedImage.setAttribute('src', e.target.result);
+          projectedImage.setAttribute('visible', 'true');
+          virtualMarker.setAttribute('visible', 'false'); // Cache le marqueur
           isImageLoaded = true; // Marque l'image comme chargée
         };
         reader.readAsDataURL(file);
@@ -87,15 +100,19 @@
       projectedImage.setAttribute('scale', `${scaleValue} ${scaleValue} ${scaleValue}`);
     });
 
-    // Gestion de la fixation du marqueur virtuel
+    // Gestion de la fixation de l'image ou du marqueur
     scene.addEventListener('click', (event) => {
-      if (isImageLoaded) {
-        // Positionne l'image à l'endroit du clic
-        const intersectedPoint = event.detail.intersection.point; // Point d'intersection
-        projectedImage.setAttribute('position', intersectedPoint);
-        projectedImage.setAttribute('visible', 'true');
+      const intersectedPoint = event.detail.intersection?.point;
+      if (intersectedPoint) {
+        if (isImageLoaded) {
+          // Déplace l'image projetée
+          projectedImage.setAttribute('position', intersectedPoint);
+        } else {
+          // Déplace le marqueur virtuel
+          virtualMarker.setAttribute('position', intersectedPoint);
+        }
       } else {
-        alert('Veuillez importer une image avant de cliquer.');
+        alert('Cliquez sur une surface détectée.');
       }
     });
   </script>
