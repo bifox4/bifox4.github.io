@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Marqueur Fixe en RA</title>
+  <title>RA : Marqueur Fixe et Image Personnalisée</title>
   <!-- A-Frame et AR.js -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/jeromeetienne/ar.js/aframe/build/aframe-ar.min.js"></script>
@@ -17,14 +17,28 @@
       position: fixed;
       top: 10px;
       left: 10px;
-      background: rgba(255, 255, 255, 0.8);
+      background: rgba(255, 255, 255, 0.9);
       padding: 10px;
       border-radius: 8px;
       z-index: 1000;
       font-family: Arial, sans-serif;
     }
-    #ui input[type="file"] {
+    #ui input[type="range"] {
+      width: 100%;
       margin-bottom: 10px;
+    }
+    #ui button {
+      width: 100%;
+      padding: 5px;
+      margin-top: 5px;
+      border: none;
+      background-color: #007BFF;
+      color: white;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #ui button:hover {
+      background-color: #0056b3;
     }
   </style>
 </head>
@@ -32,7 +46,15 @@
   <!-- Interface Utilisateur -->
   <div id="ui">
     <label for="image-input">Importer une image :</label>
-    <input type="file" id="image-input" accept="image/*">
+    <input type="file" id="image-input" accept="image/*"><br>
+    
+    <label for="scale-slider">Taille :</label>
+    <input type="range" id="scale-slider" min="0.1" max="5" step="0.1" value="1"><br>
+    
+    <label for="rotation-slider">Rotation :</label>
+    <input type="range" id="rotation-slider" min="0" max="360" step="1" value="0"><br>
+    
+    <button id="reset-marker">Réinitialiser le marqueur</button>
   </div>
 
   <!-- Scène A-Frame -->
@@ -41,14 +63,15 @@
     embedded
     arjs="sourceType: webcam; debugUIEnabled: false;">
     
-    <!-- Objet virtuel bloqué -->
-    <a-entity
-      id="locked-marker"
-      geometry="primitive: box; height: 0.1; width: 0.1; depth: 0.1"
-      material="color: yellow"
-      visible="true"
-      position="0 0 0">
-    </a-entity>
+    <!-- Image projetée -->
+    <a-image 
+      id="projected-image" 
+      src=""
+      scale="1 1 1" 
+      rotation="0 0 0" 
+      visible="false" 
+      position="0 0 -1">
+    </a-image>
 
     <!-- Lumières -->
     <a-light type="ambient" intensity="0.5"></a-light>
@@ -57,11 +80,15 @@
 
   <script>
     // Références
-    const scene = document.querySelector('a-scene');
-    const lockedMarker = document.getElementById('locked-marker');
     const imageInput = document.getElementById('image-input');
+    const scaleSlider = document.getElementById('scale-slider');
+    const rotationSlider = document.getElementById('rotation-slider');
+    const resetMarkerButton = document.getElementById('reset-marker');
+    const projectedImage = document.getElementById('projected-image');
+    const scene = document.querySelector('a-scene');
 
-    let isMarkerLocked = false; // État de verrouillage du marqueur
+    let isMarkerFixed = false; // État de fixation du marqueur
+    let fixedPosition = null; // Position fixe dans l'espace
 
     // Gestion de l'importation d'images
     imageInput.addEventListener('change', (event) => {
@@ -69,25 +96,48 @@
       if (file) {
         const reader = new FileReader();
         reader.onload = (e) => {
-          lockedMarker.setAttribute('material', `src: ${e.target.result}`);
+          projectedImage.setAttribute('src', e.target.result);
+          projectedImage.setAttribute('visible', 'true');
         };
         reader.readAsDataURL(file);
       }
     });
 
+    // Ajustement de la taille
+    scaleSlider.addEventListener('input', (event) => {
+      const scaleValue = event.target.value;
+      projectedImage.setAttribute('scale', `${scaleValue} ${scaleValue} ${scaleValue}`);
+    });
+
+    // Ajustement de la rotation
+    rotationSlider.addEventListener('input', (event) => {
+      const rotationValue = event.target.value;
+      projectedImage.setAttribute('rotation', `0 ${rotationValue} 0`);
+    });
+
     // Clic pour fixer le marqueur
     scene.addEventListener('click', (event) => {
-      if (!isMarkerLocked) {
+      if (!isMarkerFixed) {
         const intersectedPoint = event.detail.intersection?.point;
         if (intersectedPoint) {
-          lockedMarker.setAttribute('position', intersectedPoint);
-          isMarkerLocked = true; // Verrouille le marqueur
+          fixedPosition = intersectedPoint; // Stocker la position fixée
+          projectedImage.setAttribute('position', fixedPosition);
+          isMarkerFixed = true;
           alert('Marqueur fixé à cette position.');
         }
       } else {
-        alert('Le marqueur est déjà fixé.');
+        alert('Le marqueur est déjà fixé. Réinitialisez-le pour le déplacer.');
       }
+    });
+
+    // Réinitialisation du marqueur
+    resetMarkerButton.addEventListener('click', () => {
+      isMarkerFixed = false;
+      fixedPosition = null;
+      projectedImage.setAttribute('position', '0 0 -1'); // Réinitialise à la position par défaut
+      alert('Marqueur réinitialisé. Cliquez pour le fixer à nouveau.');
     });
   </script>
 </body>
 </html>
+
