@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Projection RA Fixée</title>
+  <title>Marqueur Fixe en RA</title>
   <!-- A-Frame et AR.js -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/jeromeetienne/ar.js/aframe/build/aframe-ar.min.js"></script>
@@ -23,9 +23,6 @@
       z-index: 1000;
       font-family: Arial, sans-serif;
     }
-    #ui input[type="range"] {
-      width: 100%;
-    }
     #ui input[type="file"] {
       margin-bottom: 10px;
     }
@@ -35,34 +32,23 @@
   <!-- Interface Utilisateur -->
   <div id="ui">
     <label for="image-input">Importer une image :</label>
-    <input type="file" id="image-input" accept="image/*"><br>
-    <label for="scale-slider">Taille :</label>
-    <input type="range" id="scale-slider" min="0.1" max="3" step="0.1" value="1">
+    <input type="file" id="image-input" accept="image/*">
   </div>
 
   <!-- Scène A-Frame -->
   <a-scene
     vr-mode-ui="enabled: false"
     embedded
-    arjs="sourceType: webcam; debugUIEnabled: false;"
-    cursor="rayOrigin: mouse">
+    arjs="sourceType: webcam; debugUIEnabled: false;">
     
-    <!-- Marqueur virtuel initial -->
-    <a-circle 
-      id="virtual-marker" 
-      color="yellow" 
-      position="0 0.1 -1" 
-      radius="0.1">
-    </a-circle>
-
-    <!-- Conteneur pour l'image projetée -->
-    <a-image 
-      id="projected-image" 
-      src="" 
-      scale="1 1 1" 
-      visible="false" 
-      position="0 0.1 -1">
-    </a-image>
+    <!-- Objet virtuel bloqué -->
+    <a-entity
+      id="locked-marker"
+      geometry="primitive: box; height: 0.1; width: 0.1; depth: 0.1"
+      material="color: yellow"
+      visible="true"
+      position="0 0 0">
+    </a-entity>
 
     <!-- Lumières -->
     <a-light type="ambient" intensity="0.5"></a-light>
@@ -70,14 +56,12 @@
   </a-scene>
 
   <script>
-    // Références aux éléments HTML et A-Frame
-    const imageInput = document.getElementById('image-input');
-    const scaleSlider = document.getElementById('scale-slider');
-    const projectedImage = document.getElementById('projected-image');
-    const virtualMarker = document.getElementById('virtual-marker');
+    // Références
     const scene = document.querySelector('a-scene');
+    const lockedMarker = document.getElementById('locked-marker');
+    const imageInput = document.getElementById('image-input');
 
-    let isImageLoaded = false; // Vérifie si une image est chargée
+    let isMarkerLocked = false; // État de verrouillage du marqueur
 
     // Gestion de l'importation d'images
     imageInput.addEventListener('change', (event) => {
@@ -85,34 +69,23 @@
       if (file) {
         const reader = new FileReader();
         reader.onload = (e) => {
-          projectedImage.setAttribute('src', e.target.result);
-          projectedImage.setAttribute('visible', 'true');
-          virtualMarker.setAttribute('visible', 'false'); // Cache le marqueur
-          isImageLoaded = true; // Marque l'image comme chargée
+          lockedMarker.setAttribute('material', `src: ${e.target.result}`);
         };
         reader.readAsDataURL(file);
       }
     });
 
-    // Gestion du redimensionnement
-    scaleSlider.addEventListener('input', (event) => {
-      const scaleValue = event.target.value;
-      projectedImage.setAttribute('scale', `${scaleValue} ${scaleValue} ${scaleValue}`);
-    });
-
-    // Gestion de la fixation de l'image ou du marqueur
+    // Clic pour fixer le marqueur
     scene.addEventListener('click', (event) => {
-      const intersectedPoint = event.detail.intersection?.point;
-      if (intersectedPoint) {
-        if (isImageLoaded) {
-          // Déplace l'image projetée
-          projectedImage.setAttribute('position', intersectedPoint);
-        } else {
-          // Déplace le marqueur virtuel
-          virtualMarker.setAttribute('position', intersectedPoint);
+      if (!isMarkerLocked) {
+        const intersectedPoint = event.detail.intersection?.point;
+        if (intersectedPoint) {
+          lockedMarker.setAttribute('position', intersectedPoint);
+          isMarkerLocked = true; // Verrouille le marqueur
+          alert('Marqueur fixé à cette position.');
         }
       } else {
-        alert('Cliquez sur une surface détectée.');
+        alert('Le marqueur est déjà fixé.');
       }
     });
   </script>
