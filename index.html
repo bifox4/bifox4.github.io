@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RA : Marqueur Fixe et Image Personnalisée</title>
+  <title>RA : Image Fixe et Marqueur Visible</title>
   <!-- A-Frame et AR.js -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/jeromeetienne/ar.js/aframe/build/aframe-ar.min.js"></script>
@@ -63,6 +63,15 @@
     embedded
     arjs="sourceType: webcam; debugUIEnabled: false;">
     
+    <!-- Marqueur temporaire visible pendant le placement -->
+    <a-entity
+      id="temporary-marker"
+      geometry="primitive: sphere; radius: 0.05"
+      material="color: red; opacity: 0.6"
+      visible="true"
+      position="0 0 -1">
+    </a-entity>
+
     <!-- Image projetée -->
     <a-image 
       id="projected-image" 
@@ -85,6 +94,7 @@
     const rotationSlider = document.getElementById('rotation-slider');
     const resetMarkerButton = document.getElementById('reset-marker');
     const projectedImage = document.getElementById('projected-image');
+    const temporaryMarker = document.getElementById('temporary-marker');
     const scene = document.querySelector('a-scene');
 
     let isMarkerFixed = false; // État de fixation du marqueur
@@ -122,6 +132,7 @@
         if (intersectedPoint) {
           fixedPosition = intersectedPoint; // Stocker la position fixée
           projectedImage.setAttribute('position', fixedPosition);
+          temporaryMarker.setAttribute('visible', 'false'); // Masquer le marqueur temporaire
           isMarkerFixed = true;
           alert('Marqueur fixé à cette position.');
         }
@@ -135,9 +146,10 @@
       isMarkerFixed = false;
       fixedPosition = null;
       projectedImage.setAttribute('position', '0 0 -1'); // Réinitialise à la position par défaut
+      projectedImage.setAttribute('visible', 'false');
+      temporaryMarker.setAttribute('visible', 'true'); // Réaffiche le marqueur temporaire
       alert('Marqueur réinitialisé. Cliquez pour le fixer à nouveau.');
     });
   </script>
 </body>
 </html>
-
