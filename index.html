@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RA : Image Fixe et Marqueur Contrôlé</title>
+  <title>RA : Fixer le Marqueur avec un Bouton</title>
   <!-- A-Frame et AR.js -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/jeromeetienne/ar.js/aframe/build/aframe-ar.min.js"></script>
@@ -54,7 +54,7 @@
     <label for="rotation-slider">Rotation :</label>
     <input type="range" id="rotation-slider" min="0" max="360" step="1" value="0"><br>
     
-    <button id="place-marker">Fixer le marqueur</button>
+    <button id="fix-marker">Fixer le marqueur</button>
     <button id="reset-marker">Réinitialiser le marqueur</button>
   </div>
 
@@ -93,14 +93,15 @@
     const imageInput = document.getElementById('image-input');
     const scaleSlider = document.getElementById('scale-slider');
     const rotationSlider = document.getElementById('rotation-slider');
-    const placeMarkerButton = document.getElementById('place-marker');
+    const fixMarkerButton = document.getElementById('fix-marker');
     const resetMarkerButton = document.getElementById('reset-marker');
     const projectedImage = document.getElementById('projected-image');
     const temporaryMarker = document.getElementById('temporary-marker');
     const scene = document.querySelector('a-scene');
 
     let isMarkerFixed = false; // État de fixation du marqueur
-    let markerPosition = null; // Position temporaire choisie
+    let fixedPosition = null; // Position fixe dans l'espace
+    let markerPlacementPosition = null; // Position temporaire avant fixation
 
     // Gestion de l'importation d'images
     imageInput.addEventListener('change', (event) => {
@@ -127,38 +128,41 @@
       projectedImage.setAttribute('rotation', `0 ${rotationValue} 0`);
     });
 
-    // Clic pour déplacer temporairement le marqueur
-    scene.addEventListener('click', (event) => {
+    // Mise à jour de la position du marqueur temporaire pendant le survol
+    scene.addEventListener('mousemove', (event) => {
       if (!isMarkerFixed) {
         const intersectedPoint = event.detail.intersection?.point;
         if (intersectedPoint) {
-          markerPosition = intersectedPoint; // Stocker la position temporaire
-          temporaryMarker.setAttribute('position', markerPosition);
-          alert('Position temporaire définie. Cliquez sur "Fixer le marqueur" pour la valider.');
+          markerPlacementPosition = intersectedPoint;
+          temporaryMarker.setAttribute('position', intersectedPoint);
         }
       }
     });
 
-    // Bouton pour fixer définitivement le marqueur
-    placeMarkerButton.addEventListener('click', () => {
-      if (markerPosition && !isMarkerFixed) {
-        projectedImage.setAttribute('position', markerPosition);
-        temporaryMarker.setAttribute('visible', 'false'); // Masquer le marqueur temporaire
+    // Fixer le marqueur à la position actuelle
+    fixMarkerButton.addEventListener('click', () => {
+      if (markerPlacementPosition && !isMarkerFixed) {
+        fixedPosition = markerPlacementPosition; // Enregistre la position actuelle
+        projectedImage.setAttribute('position', fixedPosition);
+        temporaryMarker.setAttribute('visible', 'false'); // Cache le marqueur temporaire
         isMarkerFixed = true;
-        alert('Marqueur fixé à cette position.');
-      } else if (!markerPosition) {
-        alert('Veuillez d\'abord sélectionner une position temporaire en cliquant sur la scène.');
+        alert('Marqueur fixé à la position choisie.');
+      } else if (isMarkerFixed) {
+        alert('Le marqueur est déjà fixé. Réinitialisez-le pour le déplacer.');
+      } else {
+        alert('Aucune position valide pour fixer le marqueur.');
       }
     });
 
     // Réinitialisation du marqueur
     resetMarkerButton.addEventListener('click', () => {
       isMarkerFixed = false;
-      markerPosition = null;
+      fixedPosition = null;
+      markerPlacementPosition = null;
+      projectedImage.setAttribute('position', '0 0 -1'); // Réinitialise à la position par défaut
       projectedImage.setAttribute('visible', 'false');
       temporaryMarker.setAttribute('visible', 'true'); // Réaffiche le marqueur temporaire
-      temporaryMarker.setAttribute('position', '0 0 -1'); // Réinitialise la position du marqueur temporaire
-      alert('Marqueur réinitialisé. Cliquez pour choisir une nouvelle position.');
+      alert('Marqueur réinitialisé. Cliquez pour le fixer à nouveau.');
     });
   </script>
 </body>
