@@ -3,9 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Détection de Plantes en AR</title>
+    <title>Détection de Plantes en RA</title>
     <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet"></script>
+    <script src="https://cdn.rawgit.com/jeromeetienne/ar.js/1.7.2/aframe/build/aframe-ar.min.js"></script>
     <style>
         body {
             margin: 0;
@@ -14,17 +16,17 @@
             background: #f4f4f4;
         }
 
-        /* Cadre caméra adapté au mobile */
+        /* Cadre caméra */
         #camera-container {
             width: 90%;
             max-width: 450px;
-            height: auto;
             aspect-ratio: 4/3;
             border: 4px solid green;
             border-radius: 10px;
             overflow: hidden;
             background: black;
             margin: 10px auto;
+            position: relative;
         }
 
         video {
@@ -33,7 +35,19 @@
             display: block;
         }
 
-        /* Résultats sous la caméra */
+        /* RA en 3D */
+        a-scene {
+            width: 90%;
+            max-width: 450px;
+            height: auto;
+            aspect-ratio: 4/3;
+            position: absolute;
+            top: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            pointer-events: none;
+        }
+
         #info-box {
             width: 90%;
             max-width: 450px;
@@ -46,7 +60,6 @@
             text-align: center;
         }
 
-        /* Boutons ajustés pour mobile */
         .btn-container {
             display: flex;
             justify-content: center;
@@ -81,32 +94,26 @@
         button:hover {
             opacity: 0.8;
         }
-
-        /* AR Overlay */
-        #ar-overlay {
-            position: absolute;
-            width: 90%;
-            max-width: 450px;
-            height: auto;
-            aspect-ratio: 4/3;
-            left: 50%;
-            transform: translateX(-50%);
-            pointer-events: none;
-        }
     </style>
 </head>
 <body>
 
-    <!-- Cadre caméra -->
+    <!-- Cadre caméra contenant la vidéo -->
     <div id="camera-container">
         <video id="video" autoplay muted playsinline></video>
-        <canvas id="ar-overlay"></canvas>
     </div>
+
+    <!-- Scène AR -->
+    <a-scene embedded arjs>
+        <a-camera position="0 0 0" look-controls-enabled="true"></a-camera>
+        <a-entity id="ar-label" geometry="primitive: plane; height: 0.2; width: 0.5" material="color: yellow; opacity: 0.8" position="0 0 -2" visible="false">
+            <a-text id="ar-text" value="Plante détectée" align="center" color="black" position="0 0 0.1"></a-text>
+        </a-entity>
+    </a-scene>
 
     <!-- Zone d'affichage des résultats sous la caméra -->
     <div id="info-box">
         <h3 id="plant-name">Nom de la plante</h3>
-        <p id="plant-info">Informations sur la plante...</p>
     </div>
 
     <!-- Boutons de contrôle -->
@@ -122,26 +129,22 @@
     </div>
 
     <script>
-        let video, canvas, ctx;
-        let currentFacingMode = "environment"; // Par défaut : caméra arrière
+        let video, model, detecting = false;
+        let currentFacingMode = "environment"; 
+        let detectedPlant = "";
 
         async function startCamera() {
             document.getElementById("start-button").style.display = "none";
             document.getElementById("analyze-button").style.display = "block";
 
             video = document.getElementById("video");
-            canvas = document.getElementById("ar-overlay");
-            ctx = canvas.getContext("2d");
 
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { 
-                        width: 640, 
-                        height: 480, 
-                        facingMode: currentFacingMode 
-                    }
+                    video: { width: 640, height: 480, facingMode: currentFacingMode }
                 });
                 video.srcObject = stream;
+                model = await mobilenet.load();
             } catch (err) {
                 console.error("Erreur d'accès à la caméra:", err);
                 alert("Impossible d'accéder à la caméra.");
@@ -158,7 +161,6 @@
                 alert("Caméra non active.");
                 return;
             }
-
             captureAndSendImage();
         }
 
@@ -194,48 +196,28 @@
                 const data = await response.json();
                 processPlantData(data);
             } catch (error) {
-                console.error("Erreur lors de l'analyse de l'image:", error);
-                alert("Erreur avec l'API Plant.id.");
+                console.error("Erreur API:", error);
+                alert("Erreur avec Plant.id.");
             }
         }
 
         function processPlantData(data) {
-            const resultBox = document.getElementById("info-box");
-
             if (data.status === "COMPLETED") {
-                const isPlant = data.result.is_plant.binary;
-                const suggestions = data.result.classification.suggestions;
-
-                if (isPlant) {
-                    const primarySuggestion = suggestions[0];
-                    const plantName = primarySuggestion.name;
-                    const confidence = (primarySuggestion.probability * 100).toFixed(2) + "%";
-
-                    document.getElementById("plant-name").textContent = `Plante détectée: ${plantName} (${confidence})`;
-                    document.getElementById("plant-info").textContent = "Analyse réussie !";
-                    
-                    resultBox.style.display = "block";
-
-                    displayARText(plantName, confidence);
-                } else {
-                    document.getElementById("plant-name").textContent = "Aucune plante détectée";
-                    document.getElementById("plant-info").textContent = "";
-                    resultBox.style.display = "block";
-                }
+                detectedPlant = data.result.classification.suggestions[0].name;
+                document.getElementById("plant-name").textContent = `Plante détectée: ${detectedPlant}`;
+                document.getElementById("info-box").style.display = "block";
+                displayAR(detectedPlant);
             } else {
                 alert("Échec de l'analyse.");
             }
         }
 
-        function displayARText(name, confidence) {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        function displayAR(plantName) {
+            const arLabel = document.getElementById("ar-label");
+            const arText = document.getElementById("ar-text");
 
-            ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-            ctx.fillRect(20, 20, 400, 80);
-            ctx.fillStyle = "white";
-            ctx.font = "16px Arial";
-            ctx.fillText(name, 30, 50);
-            ctx.fillText(`Confiance: ${confidence}`, 30, 70);
+            arText.setAttribute("value", plantName);
+            arLabel.setAttribute("visible", "true");
         }
     </script>
 
