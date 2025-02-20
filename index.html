@@ -35,7 +35,7 @@
             display: block;
         }
 
-        /* Scène RA */
+        /* RA */
         a-scene {
             width: 90%;
             max-width: 450px;
@@ -103,12 +103,12 @@
         <video id="video" autoplay muted playsinline></video>
     </div>
 
-    <!-- Scène AR -->
-    <a-scene embedded arjs>
+    <!-- Scène AR (fixée au cadre, sans deuxième accès caméra) -->
+    <a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false;">
         <a-camera position="0 0 0" look-controls-enabled="true"></a-camera>
         <a-entity id="ar-marker" position="0 0 -2">
-            <a-entity id="ar-label" geometry="primitive: plane; height: 0.2; width: 0.5" material="color: yellow; opacity: 0.8" visible="false">
-                <a-text id="ar-text" value="Plante détectée" align="center" color="black" position="0 0 0.1" scale="1 1 1"></a-text>
+            <a-entity id="ar-label" geometry="primitive: plane; height: 0.1; width: 0.3" material="color: yellow; opacity: 0.8" visible="false">
+                <a-text id="ar-text" value="Plante détectée" align="center" color="black" position="0 0 0.05" scale="0.5 0.5 0.5"></a-text>
             </a-entity>
         </a-entity>
     </a-scene>
@@ -134,7 +134,7 @@
         let video, model, detecting = false;
         let currentFacingMode = "environment"; 
         let detectedPlant = "";
-        let markerPosition = "0 0 -2"; // Position d’ancrage virtuel
+        let markerPosition = "0 0 -2"; // Position d’ancrage
 
         async function startCamera() {
             document.getElementById("start-button").style.display = "none";
@@ -166,7 +166,7 @@
             }
 
             captureAndSendImage();
-            fixVirtualMarker(); // Fixe le point d’ancrage
+            fixVirtualMarker();
         }
 
         function captureAndSendImage() {
@@ -206,6 +206,10 @@
             }
         }
 
+        function fixVirtualMarker() {
+            document.getElementById("ar-marker").setAttribute("position", markerPosition);
+        }
+
         function processPlantData(data) {
             if (data.status === "COMPLETED") {
                 detectedPlant = data.result.classification.suggestions[0].name;
@@ -215,10 +219,6 @@
             } else {
                 alert("Échec de l'analyse.");
             }
-        }
-
-        function fixVirtualMarker() {
-            document.getElementById("ar-marker").setAttribute("position", markerPosition);
         }
 
         function displayAR(plantName) {
