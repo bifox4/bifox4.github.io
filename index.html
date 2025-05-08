@@ -7,29 +7,44 @@
       body {
         margin: 0;
         overflow: hidden;
-         /* Fond transparent pour voir la caméra */
+        background: transparent;
       }
 
       canvas {
         position: fixed;
         top: 0;
         left: 0;
-        z-index: 0; /* Canvas doit être sous le texte et les éléments interactifs */
+        z-index: 0;
       }
 
       #fixButton {
         position: absolute;
-        bottom: 20px;
+        top: 50px; /* Déplace le bouton plus haut */
         left: 50%;
         transform: translateX(-50%);
         padding: 12px 24px;
         font-size: 16px;
-        z-index: 1; /* Le bouton doit être au-dessus du canvas */
+        z-index: 1;
+        background-color: rgba(0, 0, 0, 0.5); /* Un fond léger pour que le bouton soit visible */
+        color: white;
+        border-radius: 8px;
+        border: none;
+      }
+
+      #message {
+        position: absolute;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: white;
+        font-size: 18px;
+        z-index: 2;
       }
     </style>
   </head>
   <body>
     <button id="fixButton">Fixer le texte</button>
+    <div id="message">Autorisation de la caméra requise...</div>
 
     <script type="module">
       import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
@@ -38,8 +53,8 @@
       let camera, scene, renderer;
       let controller;
       let reticle;
-      let anchor = null;
       let placingEnabled = false;
+      let cameraPermissionGranted = false;
 
       init();
       animate();
@@ -64,10 +79,29 @@
         renderer.xr.setReferenceSpaceType('local');
         document.body.appendChild(renderer.domElement);
 
+        // Message pour indiquer qu'on attend l'autorisation de la caméra
+        const messageElement = document.getElementById('message');
+
+        // Demander la permission de la caméra via WebXR
+        if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+          navigator.mediaDevices.enumerateDevices().then((devices) => {
+            const cameraDevice = devices.find(device => device.kind === 'videoinput');
+            if (cameraDevice) {
+              messageElement.textContent = 'Autorisation de la caméra requise...';
+            } else {
+              messageElement.textContent = 'Aucune caméra disponible';
+            }
+          });
+        }
+
         // Ajout du bouton AR
         document.body.appendChild(
           ARButton.createButton(renderer, {
             requiredFeatures: ['hit-test', 'anchors'],
+            onSessionStart: () => {
+              messageElement.style.display = 'none'; // Cacher le message quand la session AR commence
+              cameraPermissionGranted = true;
+            }
           })
         );
 
@@ -104,6 +138,10 @@
         scene.add(controller);
 
         document.getElementById('fixButton').addEventListener('click', () => {
+          if (!cameraPermissionGranted) {
+            alert('Veuillez autoriser l\'accès à la caméra pour activer AR');
+            return;
+          }
           placingEnabled = true;
         });
 
