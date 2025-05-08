@@ -94,6 +94,7 @@
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
       .then(stream => {
         video.srcObject = stream;
+        video.play();
       })
       .catch(err => {
         alert('Erreur d’accès à la caméra : ' + err.message);
