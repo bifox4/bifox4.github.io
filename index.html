@@ -1,164 +1,150 @@
 <!DOCTYPE html>
 <html lang="fr">
-<head>
-  <meta charset="UTF-8">
-  <title>RA : Image Fixe avec Hit-Testing</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <!-- A-Frame et AR.js -->
-  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/jeromeetienne/ar.js/aframe/build/aframe-ar.min.js"></script>
-  <!-- Composant ar-hit-test -->
-  <script src="https://cdn.jsdelivr.net/npm/aframe-ar-hit-test-component@1.0.0/dist/aframe-ar-hit-test-component.min.js"></script>
-  <style>
-    body, html {
-      margin: 0;
-      overflow: hidden;
-      height: 100%;
-    }
-    #ui {
-      position: fixed;
-      top: 10px;
-      left: 10px;
-      background: rgba(255, 255, 255, 0.9);
-      padding: 10px;
-      border-radius: 8px;
-      z-index: 1000;
-      font-family: Arial, sans-serif;
-    }
-    #ui input[type="range"] {
-      width: 100%;
-      margin-bottom: 10px;
-    }
-    #ui button {
-      width: 100%;
-      padding: 5px;
-      margin-top: 5px;
-      border: none;
-      background-color: #007BFF;
-      color: white;
-      border-radius: 5px;
-      cursor: pointer;
-    }
-    #ui button:hover {
-      background-color: #0056b3;
-    }
-  </style>
-</head>
-<body>
-  <!-- Interface Utilisateur -->
-  <div id="ui">
-    <label for="image-input">Importer une image :</label>
-    <input type="file" id="image-input" accept="image/*"><br>
-    
-    <label for="scale-slider">Taille :</label>
-    <input type="range" id="scale-slider" min="0.1" max="5" step="0.1" value="1"><br>
-    
-    <label for="rotation-slider">Rotation :</label>
-    <input type="range" id="rotation-slider" min="0" max="360" step="1" value="0"><br>
-    
-    <button id="place-marker">Fixer le marqueur</button>
-    <button id="reset-marker">Réinitialiser le marqueur</button>
-  </div>
+  <head>
+    <meta charset="UTF-8" />
+    <title>RA - Fixation d'image sans marqueur</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.min.js"></script>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        font-family: sans-serif;
+      }
+      #ui {
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        z-index: 9999;
+        background: rgba(255, 255, 255, 0.9);
+        padding: 10px;
+        border-radius: 8px;
+        width: 250px;
+      }
+      #ui input,
+      #ui button {
+        margin-top: 5px;
+        width: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="ui">
+      <input type="file" id="image-input" accept="image/*" />
+      <label for="scale-slider">Taille</label>
+      <input type="range" id="scale-slider" min="0.1" max="3" value="1" step="0.1" />
+      <label for="rotation-slider">Rotation</label>
+      <input type="range" id="rotation-slider" min="0" max="360" value="0" />
+      <button id="fix-button">Fixer le marqueur</button>
+      <button id="reset-button">Réinitialiser</button>
+    </div>
 
-  <!-- Scène A-Frame -->
-  <a-scene
-    webxr="optionalFeatures: hit-test;"
-    ar-hit-test="target: #projected-image;"
-    embedded
-    vr-mode-ui="enabled: false"
-    renderer="colorManagement: true; physicallyCorrectLights: true;">
-    
-    <!-- Image projetée -->
-    <a-image 
-      id="projected-image" 
-      src=""
-      scale="1 1 1" 
-      rotation="0 0 0" 
-      visible="false">
-    </a-image>
+    <a-scene
+      vr-mode-ui="enabled: false"
+      embedded
+      arjs="sourceType: webcam; debugUIEnabled: false;"
+    >
+      <a-entity camera id="camera"></a-entity>
 
-    <!-- Réticule pour le placement -->
-    <a-entity id="reticle" 
-              geometry="primitive: ring; radiusInner: 0.05; radiusOuter: 0.06"
-              material="color: green; shader: flat"
-              position="0 0 -1"
-              visible="false">
-    </a-entity>
+      <!-- Réticule de placement -->
+      <a-ring
+        id="reticle"
+        color="green"
+        radius-inner="0.03"
+        radius-outer="0.05"
+        position="0 0 -1"
+        rotation="-90 0 0"
+        material="shader: flat"
+        visible="true"
+      ></a-ring>
 
-    <!-- Lumières -->
-    <a-light type="ambient" intensity="0.5"></a-light>
-    <a-light type="point" intensity="1" position="2 4 4"></a-light>
-  </a-scene>
+      <!-- Image projetée -->
+      <a-image
+        id="placed-image"
+        src=""
+        visible="false"
+        position="0 0 0"
+        rotation="0 0 0"
+        scale="1 1 1"
+      ></a-image>
+    </a-scene>
 
-  <script>
-    // Références
-    const imageInput = document.getElementById('image-input');
-    const scaleSlider = document.getElementById('scale-slider');
-    const rotationSlider = document.getElementById('rotation-slider');
-    const placeMarkerButton = document.getElementById('place-marker');
-    const resetMarkerButton = document.getElementById('reset-marker');
-    const projectedImage = document.getElementById('projected-image');
-    const reticle = document.getElementById('reticle');
-    const sceneEl = document.querySelector('a-scene');
+    <script>
+      const imageInput = document.getElementById("image-input");
+      const scaleSlider = document.getElementById("scale-slider");
+      const rotationSlider = document.getElementById("rotation-slider");
+      const fixButton = document.getElementById("fix-button");
+      const resetButton = document.getElementById("reset-button");
 
-    let isMarkerFixed = false;
+      const placedImage = document.getElementById("placed-image");
+      const reticle = document.getElementById("reticle");
+      const camera = document.getElementById("camera");
 
-    // Importation d'image
-    imageInput.addEventListener('change', (event) => {
-      const file = event.target.files[0];
-      if (file) {
+      let isPlaced = false;
+
+      // Charger l'image
+      imageInput.addEventListener("change", (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
         const reader = new FileReader();
-        reader.onload = (e) => {
-          projectedImage.setAttribute('src', e.target.result);
-          projectedImage.setAttribute('visible', 'true');
+        reader.onload = function (e) {
+          placedImage.setAttribute("src", e.target.result);
+          placedImage.setAttribute("visible", "true");
         };
         reader.readAsDataURL(file);
-      }
-    });
+      });
 
-    // Ajustement de la taille
-    scaleSlider.addEventListener('input', (event) => {
-      const scaleValue = event.target.value;
-      projectedImage.setAttribute('scale', `${scaleValue} ${scaleValue} ${scaleValue}`);
-    });
+      // Ajuster la taille
+      scaleSlider.addEventListener("input", () => {
+        const s = scaleSlider.value;
+        placedImage.setAttribute("scale", `${s} ${s} ${s}`);
+      });
 
-    // Ajustement de la rotation
-    rotationSlider.addEventListener('input', (event) => {
-      const rotationValue = event.target.value;
-      projectedImage.setAttribute('rotation', `0 ${rotationValue} 0`);
-    });
+      // Ajuster la rotation
+      rotationSlider.addEventListener("input", () => {
+        const r = rotationSlider.value;
+        const currentRot = placedImage.getAttribute("rotation");
+        placedImage.setAttribute("rotation", `0 ${r} 0`);
+      });
 
-    // Placement de l'image sur la surface détectée
-    sceneEl.addEventListener('ar-hit-test-select', (event) => {
-      if (!isMarkerFixed) {
-        const position = event.detail.position;
-        const rotation = event.detail.rotation;
+      // Clic pour placer l'image
+      document.querySelector("a-scene").addEventListener("click", () => {
+        if (isPlaced || !placedImage.getAttribute("visible")) return;
 
-        projectedImage.setAttribute('position', position);
-        projectedImage.setAttribute('rotation', rotation);
-        projectedImage.setAttribute('visible', 'true');
-        reticle.setAttribute('visible', 'false');
-      }
-    });
+        const cam = camera.object3D;
+        const dir = new THREE.Vector3();
+        cam.getWorldDirection(dir);
 
-    // Fixation du marqueur
-    placeMarkerButton.addEventListener('click', () => {
-      if (projectedImage.getAttribute('visible')) {
-        isMarkerFixed = true;
-        alert('Marqueur fixé à cette position.');
-      } else {
-        alert('Veuillez d\'abord placer l\'image sur une surface détectée.');
-      }
-    });
+        const pos = new THREE.Vector3();
+        cam.getWorldPosition(pos);
 
-    // Réinitialisation du marqueur
-    resetMarkerButton.addEventListener('click', () => {
-      isMarkerFixed = false;
-      projectedImage.setAttribute('visible', 'false');
-      reticle.setAttribute('visible', 'true');
-      alert('Marqueur réinitialisé. Cliquez pour choisir une nouvelle position.');
-    });
-  </script>
-</body>
+        // Placer l'image à 1m devant la caméra
+        const placePos = pos.clone().add(dir.multiplyScalar(1));
+        placedImage.setAttribute("position", placePos);
+        placedImage.object3D.lookAt(pos); // Orienté vers la caméra
+      });
+
+      // Fixer le marqueur
+      fixButton.addEventListener("click", () => {
+        if (!placedImage.getAttribute("visible")) {
+          alert("Importe une image et clique pour la placer.");
+          return;
+        }
+        isPlaced = true;
+        reticle.setAttribute("visible", "false");
+        alert("Marqueur fixé !");
+      });
+
+      // Réinitialiser
+      resetButton.addEventListener("click", () => {
+        isPlaced = false;
+        placedImage.setAttribute("visible", "false");
+        placedImage.setAttribute("position", "0 0 0");
+        reticle.setAttribute("visible", "true");
+        alert("Marqueur réinitialisé.");
+      });
+    </script>
+  </body>
 </html>
-
