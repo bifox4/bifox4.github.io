@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>AR Viewer - Ianis</title>
     <style>
@@ -11,13 +11,25 @@
             overflow: hidden;
             background: #000;
             font-family: Arial, sans-serif;
-            touch-action: none;
+            -webkit-touch-callout: none;
         }
-        #arView {
+        #arContainer {
             position: absolute;
             width: 100%;
             height: 100%;
             display: none;
+        }
+        #status {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            z-index: 100;
         }
         #startButton {
             position: absolute;
@@ -31,33 +43,26 @@
             border-radius: 30px;
             font-size: 18px;
             z-index: 100;
-        }
-        #status {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            color: white;
-            background: rgba(0,0,0,0.7);
-            padding: 10px;
-            border-radius: 5px;
-            z-index: 100;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
         }
     </style>
 </head>
 <body>
-    <div id="arView"></div>
-    <div id="status">Prêt à démarrer l'AR</div>
-    <button id="startButton">Activer la caméra AR</button>
+    <div id="arContainer"></div>
+    <div id="status">Appuyez pour démarrer la réalité augmentée</div>
+    <button id="startButton">ACTIVER L'AR</button>
 
-    <!-- Three.js from CDN -->
+    <!-- Three.js + WebXR depuis CDN -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/webxr/XRControllerModelFactory.js"></script>
     
     <script>
         // Variables globales
         let camera, scene, renderer;
-        let model;
+        let model, controller;
         let xrSession = null;
+        let hitTestSource = null;
 
         // 1. Initialisation
         async function init() {
@@ -65,13 +70,17 @@
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
             
-            // Configurer le renderer WebXR
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            // Configurer le renderer avec WebXR
+            renderer = new THREE.WebGLRenderer({ 
+                antialias: true,
+                alpha: true,
+                preserveDrawingBuffer: true // Important pour iOS
+            });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.xr.enabled = true;
-            document.getElementById('arView').appendChild(renderer.domElement);
+            document.getElementById('arContainer').appendChild(renderer.domElement);
 
-            // Charger le modèle
+            // Charger le modèle GLB
             try {
                 const loader = new THREE.GLTFLoader();
                 const gltf = await loader.loadAsync('/ianis.glb');
@@ -79,13 +88,18 @@
                 model.scale.set(0.5, 0.5, 0.5);
                 model.visible = false;
                 scene.add(model);
-                updateStatus("Modèle chargé. Cliquez pour démarrer l'AR");
+                updateStatus("Prêt ! Cliquez pour placer le modèle");
             } catch (error) {
                 console.error("Erreur de chargement:", error);
                 updateStatus("Erreur de chargement du modèle", true);
             }
 
-            // Gestion du bouton
+            // Contrôleur AR
+            controller = renderer.xr.getController(0);
+            controller.addEventListener('select', onSelect);
+            scene.add(controller);
+
+            // Bouton d'activation
             document.getElementById('startButton').addEventListener('click', toggleAR);
             
             // Redimensionnement
@@ -103,52 +117,74 @@
 
         async function startAR() {
             try {
-                // Demande explicite d'accès à la caméra
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                stream.getTracks().forEach(track => track.stop());
-                
-                // Démarrer la session WebXR
+                // Vérifier la compatibilité
+                if (!navigator.xr) {
+                    throw new Error("WebXR non supporté");
+                }
+
+                // Démarrer la session
                 const session = await navigator.xr.requestSession('immersive-ar', {
-                    requiredFeatures: ['local', 'hit-test'],
+                    requiredFeatures: ['hit-test'],
                     optionalFeatures: ['dom-overlay']
                 });
-                
+
                 xrSession = session;
                 renderer.xr.setSession(session);
-                document.getElementById('arView').style.display = 'block';
-                updateStatus("Recherche de surfaces...");
                 
-                // Configuration des événements
-                session.addEventListener('end', endAR);
-                renderer.setAnimationLoop(render);
+                // Afficher le flux caméra
+                document.getElementById('arContainer').style.display = 'block';
+                updateStatus("Recherche de surfaces... Touchez pour placer");
+
+                // Configurer le hit-test
+                const referenceSpace = await session.requestReferenceSpace('viewer');
+                hitTestSource = await session.requestHitTestSource({ space: referenceSpace });
+
+                // Démarrer la boucle de rendu
+                renderer.setAnimationLoop((timestamp, frame) => {
+                    if (frame && hitTestSource) {
+                        const hitTestResults = frame.getHitTestResults(hitTestSource);
+                        if (hitTestResults.length > 0 && !model.visible) {
+                            const pose = hitTestResults[0].getPose(referenceSpace);
+                            model.position.setFromMatrixPosition(pose.transform.matrix);
+                        }
+                    }
+                    renderer.render(scene, camera);
+                });
+
+                document.getElementById('startButton').textContent = "QUITTER L'AR";
                 
-                document.getElementById('startButton').textContent = "Quitter l'AR";
             } catch (error) {
                 console.error("Erreur AR:", error);
-                updateStatus("Erreur: " + error.message, true);
+                updateStatus(`Erreur : ${error.message}`, true);
+                
+                // Solution de secours pour iOS
+                if (error.message.includes("session")) {
+                    updateStatus("Essayez avec Safari iOS 15+ en HTTPS", true);
+                }
             }
         }
 
-        function endAR() {
-            if (xrSession) {
-                xrSession.end();
+        function onSelect() {
+            if (model && !model.visible) {
+                model.visible = true;
+                updateStatus("Modèle placé ! Déplacez-vous pour voir");
             }
+        }
+
+        async function endAR() {
+            if (xrSession) {
+                await xrSession.end();
+            }
+            cleanupAR();
         }
 
         function cleanupAR() {
-            document.getElementById('arView').style.display = 'none';
+            document.getElementById('arContainer').style.display = 'none';
+            if (model) model.visible = false;
             xrSession = null;
-            document.getElementById('startButton').textContent = "Activer la caméra AR";
-            updateStatus("Session AR terminée");
+            document.getElementById('startButton').textContent = "ACTIVER L'AR";
+            updateStatus("Appuyez pour redémarrer");
             renderer.setAnimationLoop(null);
-        }
-
-        // 3. Rendering
-        function render() {
-            if (!renderer.xr.isPresenting) return;
-            
-            // Mettre à jour la position du modèle si nécessaire
-            renderer.render(scene, camera);
         }
 
         // Utilitaires
@@ -156,6 +192,7 @@
             const status = document.getElementById('status');
             status.textContent = message;
             status.style.color = isError ? '#ff4444' : 'white';
+            status.style.display = message ? 'block' : 'none';
         }
 
         function onWindowResize() {
@@ -165,18 +202,22 @@
         }
 
         // Démarrer l'application
-        if (navigator.xr) {
-            navigator.xr.isSessionSupported('immersive-ar')
-                .then((supported) => {
+        (async () => {
+            try {
+                if (navigator.xr) {
+                    const supported = await navigator.xr.isSessionSupported('immersive-ar');
                     if (supported) {
-                        init();
+                        await init();
                     } else {
-                        updateStatus("AR non supporté sur cet appareil", true);
+                        updateStatus("AR non disponible sur cet appareil", true);
                     }
-                });
-        } else {
-            updateStatus("WebXR non disponible. Utilisez Chrome/Edge sur Android ou Safari iOS 15+", true);
-        }
+                } else {
+                    updateStatus("Utilisez Chrome Android ou Safari iOS 15+", true);
+                }
+            } catch (error) {
+                updateStatus(`Erreur initiale : ${error.message}`, true);
+            }
+        })();
     </script>
 </body>
 </html>
