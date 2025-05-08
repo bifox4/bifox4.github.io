@@ -1,166 +1,53 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <title>AR Instantané - Ianis</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AR Image Projection</title>
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.min.js"></script>
     <style>
         body {
             margin: 0;
             overflow: hidden;
-            background: black;
-            font-family: Arial, sans-serif;
         }
-        #arContainer {
+        #instructions {
             position: absolute;
-            width: 100%;
-            height: 100%;
-        }
-        #status {
-            position: absolute;
-            top: 20px;
-            left: 0;
-            right: 0;
-            color: white;
-            background: rgba(0,0,0,0.7);
-            padding: 15px;
-            text-align: center;
-            z-index: 100;
-        }
-        #startButton {
-            position: absolute;
-            bottom: 30px;
+            top: 10px;
             left: 50%;
             transform: translateX(-50%);
-            padding: 15px 30px;
-            background: #4285F4;
+            background-color: rgba(0, 0, 0, 0.5);
             color: white;
-            border: none;
-            border-radius: 30px;
-            font-size: 18px;
-            z-index: 100;
+            padding: 10px;
+            border-radius: 8px;
+            font-family: Arial, sans-serif;
         }
     </style>
 </head>
 <body>
-    <div id="arContainer"></div>
-    <div id="status">Appuyez sur "Démarrer AR"</div>
-    <button id="startButton">Démarrer AR</button>
+    <div id="instructions">
+        <p>Déplacez votre appareil pour trouver un marqueur AR ou appuyez pour placer l'image.</p>
+    </div>
+    <a-scene embedded arjs>
+        <!-- Caméra AR -->
+        <a-camera position="0 0 0" look-controls enabled></a-camera>
 
-    <!-- Three.js + WebXR -->
-    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>
-    
+        <!-- Image projetée dans l'espace -->
+        <a-entity id="image-container" position="0 0 -2">
+            <a-image src="https://via.placeholder.com/512" scale="1 1 1"></a-image>
+        </a-entity>
+
+        <!-- Plan pour fixer l'image -->
+        <a-plane position="0 -1 0" rotation="-90 0 0" width="10" height="10" color="#cccccc"></a-plane>
+    </a-scene>
+
     <script>
-        // 1. Variables globales
-        let model, camera, scene, renderer;
-        let xrSession = null;
-
-        // 2. Initialisation
-        async function init() {
-            // A. Configurer Three.js
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
-            
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.xr.enabled = true;
-            document.getElementById('arContainer').appendChild(renderer.domElement);
-
-            // B. Charger le modèle
-            try {
-                const loader = new THREE.GLTFLoader();
-                const gltf = await loader.loadAsync('./ianis.glb');
-                model = gltf.scene;
-                model.scale.set(0.5, 0.5, 0.5);
-                model.visible = false;
-                scene.add(model);
-                updateStatus("Prêt à démarrer !");
-            } catch (error) {
-                updateStatus("Erreur de chargement du modèle", true);
-                console.error(error);
-            }
-
-            // C. Bouton AR
-            document.getElementById('startButton').addEventListener('click', toggleAR);
-        }
-
-        // 3. Gestion AR
-        async function toggleAR() {
-            if (xrSession) {
-                endAR();
-            } else {
-                await startAR();
-            }
-        }
-
-        async function startAR() {
-            try {
-                // A. Démarrer la session
-                const session = await navigator.xr.requestSession('immersive-ar');
-                xrSession = session;
-                renderer.xr.setSession(session);
-                
-                // B. Activer le flux caméra
-                document.getElementById('arContainer').style.display = 'block';
-                updateStatus("Recherche de surfaces...");
-
-                // C. Configurer le placement
-                session.addEventListener('select', () => {
-                    if (model) {
-                        model.visible = true;
-                        updateStatus("Modèle placé !");
-                    }
-                });
-
-                // D. Animation
-                renderer.setAnimationLoop(() => {
-                    renderer.render(scene, camera);
-                });
-
-                document.getElementById('startButton').textContent = "Quitter AR";
-                
-            } catch (error) {
-                updateStatus("Erreur : " + error.message, true);
-                console.error("Erreur AR:", error);
-            }
-        }
-
-        function endAR() {
-            if (xrSession) {
-                xrSession.end();
-            }
-            cleanupAR();
-        }
-
-        function cleanupAR() {
-            if (model) model.visible = false;
-            xrSession = null;
-            document.getElementById('startButton').textContent = "Démarrer AR";
-            updateStatus("Session terminée");
-            renderer.setAnimationLoop(null);
-        }
-
-        // 4. Utilitaires
-        function updateStatus(msg, isError = false) {
-            const el = document.getElementById('status');
-            el.textContent = msg;
-            el.style.color = isError ? "#FF4444" : "white";
-        }
-
-        // 5. Démarrer
-        (async () => {
-            if (navigator.xr) {
-                const supported = await navigator.xr.isSessionSupported('immersive-ar');
-                if (supported) {
-                    await init();
-                } else {
-                    updateStatus("AR non disponible sur ce navigateur", true);
-                }
-            } else {
-                updateStatus("Utilisez Chrome Android récent", true);
-            }
-        })();
+        // Interaction pour fixer la position de l'image au clic
+        document.querySelector('#image-container').addEventListener('click', function (evt) {
+            const entity = evt.target;
+            const position = entity.getAttribute('position');
+            console.log('Image fixée à la position :', position);
+        });
     </script>
 </body>
 </html>
