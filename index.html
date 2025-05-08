@@ -1,80 +1,271 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Application WebXR</title>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/loaders/FontLoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/geometries/TextGeometry.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/webxr/VRButton.js"></script>
+    <title>AR Virtuelle - Contrôle de Plante</title>
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 4px;
+            z-index: 100;
+            max-width: 80%;
+        }
+        
+        .control-panel {
+            position: absolute;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            z-index: 100;
+        }
+        
+        #ar-button {
+            padding: 12px 24px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        
+        #zoom-in, #zoom-out {
+            padding: 12px 20px;
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        
+        .ar-marker {
+            display: none;
+        }
+        
+        #permission-request {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        #permission-button {
+            padding: 12px 24px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        
+        #zoom-level {
+            position: absolute;
+            bottom: 140px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            z-index: 100;
+        }
+    </style>
 </head>
 <body>
-    <button id="placeMarkerButton" style="position: absolute; z-index: 10; top: 10px; left: 10px;">Poser le marqueur virtuel</button>
+    <div id="permission-request">
+        <h2>Application AR Plante</h2>
+        <p>Cette application utilise la réalité augmentée avec contrôle de zoom.</p>
+        <p>Elle nécessite l'accès à votre caméra.</p>
+        <button id="permission-button">Autoriser la caméra et démarrer</button>
+    </div>
+
+    <div id="info">
+        Déplacez votre appareil pour détecter des surfaces. Appuyez sur le bouton pour placer le marqueur.
+    </div>
+
+    <div id="zoom-level">Zoom: 100%</div>
+    
+    <div class="control-panel">
+        <button id="zoom-out">-</button>
+        <button id="ar-button" disabled>Placer le marqueur</button>
+        <button id="zoom-in">+</button>
+    </div>
+
+    <a-scene 
+        vr-mode-ui="enabled: false"
+        arjs="sourceType: webcam; detectionMode: mono_and_matrix; matrixCodeType: 3x3;"
+        renderer="logarithmicDepthBuffer: true; precision: medium;"
+        embedded>
+
+        <!-- Marqueur virtuel (invisible) -->
+        <a-nft type="nft" url="https://arjs-cors-proxy.herokuapp.com/https://raw.githack.com/AR-js-org/AR.js/master/data/dataNFT/pinball" smooth="true" smoothCount="10" smoothTolerance="0.01" smoothThreshold="5">
+            <a-entity id="virtual-marker" visible="false">
+                <!-- Contenu AR à afficher -->
+                <a-entity id="ar-content" scale="1 1 1">
+                    <a-text value="Arroser cette plante" 
+                            color="white" 
+                            align="center" 
+                            width="3"
+                            position="0 0.5 0">
+                    </a-text>
+                    <a-plane color="#4CAF50" 
+                             opacity="0.7" 
+                             height="0.5" 
+                             width="2"
+                             position="0 0.25 0">
+                    </a-plane>
+                </a-entity>
+            </a-entity>
+        </a-nft>
+
+        <!-- Caméra AR -->
+        <a-entity camera></a-entity>
+    </a-scene>
+
     <script>
-        // Initialisation de la scène, de la caméra et du rendu
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.xr.enabled = true;
-        document.body.appendChild(renderer.domElement);
+        // Éléments DOM
+        const permissionRequest = document.getElementById('permission-request');
+        const permissionButton = document.getElementById('permission-button');
+        const arButton = document.getElementById('ar-button');
+        const zoomInButton = document.getElementById('zoom-in');
+        const zoomOutButton = document.getElementById('zoom-out');
+        const zoomLevelDisplay = document.getElementById('zoom-level');
+        const info = document.getElementById('info');
+        const virtualMarker = document.getElementById('virtual-marker');
+        const arContent = document.getElementById('ar-content');
+        const scene = document.querySelector('a-scene');
 
-        // Ajout du bouton VR (WebXR)
-        document.body.appendChild(VRButton.createButton(renderer));
+        // Variables d'état
+        let markerPlaced = false;
+        let arSessionStarted = false;
+        let currentZoom = 1.0;
 
-        // Lumière
-        const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-        scene.add(light);
-
-        // Fonction pour ajouter du texte 3D
-        let textMesh;
-        function addText(position) {
-            const loader = new THREE.FontLoader();
-            loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', function (font) {
-                const textGeometry = new THREE.TextGeometry('Arroser cette plante', {
-                    font: font,
-                    size: 0.1,
-                    height: 0.02,
-                });
-                const textMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
-                textMesh = new THREE.Mesh(textGeometry, textMaterial);
-                textMesh.position.set(position.x, position.y, position.z);
-                scene.add(textMesh);
+        // Démarrer l'expérience AR
+        permissionButton.addEventListener('click', () => {
+            permissionRequest.style.display = 'none';
+            arButton.disabled = false;
+            zoomInButton.disabled = false;
+            zoomOutButton.disabled = false;
+            
+            // Attendre que la scène AR soit prête
+            scene.addEventListener('arReady', () => {
+                info.textContent = "Système AR prêt. Déplacez votre appareil pour détecter des surfaces.";
+                arSessionStarted = true;
             });
-        }
+            
+            scene.addEventListener('arError', () => {
+                info.textContent = "Erreur lors du démarrage de l'AR. Essayez de recharger la page.";
+            });
+        });
 
-        // Gestion du bouton "Poser le marqueur virtuel"
-        const placeMarkerButton = document.getElementById("placeMarkerButton");
-        placeMarkerButton.addEventListener("click", () => {
-            if (renderer.xr.isPresenting) {
-                const viewerSpace = renderer.xr.getReferenceSpace();
-                const session = renderer.xr.getSession();
-                session.requestReferenceSpace('viewer').then((refSpace) => {
-                    const pose = session.inputSources[0].targetRaySpace;
-                    const viewerPose = session.getViewerPose(refSpace);
-                    if (viewerPose) {
-                        const position = {
-                            x: viewerPose.transform.position.x,
-                            y: viewerPose.transform.position.y,
-                            z: viewerPose.transform.position.z - 0.5 // Place le texte à 0.5 m devant
-                        };
-                        addText(position);
-                    }
-                });
+        // Gestion du bouton AR
+        arButton.addEventListener('click', () => {
+            if (!markerPlaced) {
+                placeMarker();
             } else {
-                alert('Activez le mode VR pour poser le marqueur.');
+                removeMarker();
             }
         });
 
-        // Animation de la scène
-        function animate() {
-            renderer.setAnimationLoop(() => {
-                renderer.render(scene, camera);
+        // Fonction pour placer le marqueur
+        function placeMarker() {
+            virtualMarker.setAttribute('visible', 'true');
+            markerPlaced = true;
+            arButton.textContent = "Retirer le marqueur";
+            info.textContent = "Marqueur placé: Arroser cette plante";
+            
+            // Positionner le marqueur devant la caméra
+            const camera = document.querySelector('[camera]');
+            const cameraPosition = camera.getAttribute('position');
+            const cameraRotation = camera.getAttribute('rotation');
+            
+            virtualMarker.setAttribute('position', {
+                x: cameraPosition.x,
+                y: cameraPosition.y,
+                z: cameraPosition.z - 1 // 1 mètre devant la caméra
+            });
+            
+            virtualMarker.setAttribute('rotation', {
+                x: 0,
+                y: cameraRotation.y,
+                z: 0
             });
         }
 
-        animate();
+        // Fonction pour retirer le marqueur
+        function removeMarker() {
+            virtualMarker.setAttribute('visible', 'false');
+            markerPlaced = false;
+            arButton.textContent = "Placer le marqueur";
+            info.textContent = "Déplacez votre appareil et appuyez pour placer le marqueur";
+        }
+
+        // Contrôle du zoom
+        zoomInButton.addEventListener('click', () => {
+            if (markerPlaced) {
+                currentZoom += 0.1;
+                updateZoom();
+            }
+        });
+
+        zoomOutButton.addEventListener('click', () => {
+            if (markerPlaced) {
+                currentZoom = Math.max(0.5, currentZoom - 0.1);
+                updateZoom();
+            }
+        });
+
+        function updateZoom() {
+            arContent.setAttribute('scale', {
+                x: currentZoom,
+                y: currentZoom,
+                z: currentZoom
+            });
+            zoomLevelDisplay.textContent = `Zoom: ${Math.round(currentZoom * 100)}%`;
+        }
+
+        // Détection de surfaces pour améliorer le placement
+        scene.addEventListener('markerFound', () => {
+            if (!markerPlaced) {
+                info.textContent = "Surface détectée. Appuyez sur le bouton pour placer le marqueur.";
+            }
+        });
+
+        // Gestion des erreurs
+        window.addEventListener('error', (error) => {
+            info.textContent = "Erreur: " + error.message;
+            console.error(error);
+        });
     </script>
 </body>
 </html>
