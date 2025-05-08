@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Texte 3D en AR</title>
+    <title>Texte 3D auto avec AR.js</title>
     <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
     <script src="https://cdn.rawgit.com/jeromeetienne/ar.js/2.2.1/aframe/build/aframe-ar.min.js"></script>
     <style>
@@ -19,12 +19,11 @@
   </head>
   <body style="margin: 0; overflow: hidden;">
     <div id="buttons">
-      <button onclick="showText()">Afficher le texte</button>
       <button onclick="fixText()">Fixer à (x, y, z)</button>
     </div>
 
     <a-scene embedded arjs="sourceType: webcam;">
-      <a-marker preset="hiro">
+      <a-marker id="marker" preset="hiro">
         <a-entity id="text3D" visible="false" position="0 0 0">
           <a-text value="Bonjour en 3D" color="red" side="double" 
                   position="0 0.5 0" scale="2 2 2"></a-text>
@@ -34,14 +33,16 @@
     </a-scene>
 
     <script>
-      function showText() {
-        document.getElementById('text3D').setAttribute('visible', true);
-      }
+      const marker = document.querySelector('#marker');
+      const textEntity = document.querySelector('#text3D');
+
+      marker.addEventListener('markerFound', () => {
+        textEntity.setAttribute('visible', true);
+      });
 
       function fixText() {
-        // Exemple de coordonnées fixes dans l’espace du marqueur
-        const entity = document.getElementById('text3D');
-        entity.setAttribute('position', { x: 1, y: 1, z: 0 });
+        // Fixe la position dans l’espace du marqueur
+        textEntity.setAttribute('position', { x: 1, y: 1, z: 0 });
       }
     </script>
   </body>
