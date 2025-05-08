@@ -1,78 +1,80 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AR Plante - Réglage Zoom</title>
-    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
-    <style>
-        body { margin: 0; overflow: hidden; }
-        #info {
-            position: absolute; top: 10px; left: 10px;
-            background: rgba(0,0,0,0.7); color: white;
-            padding: 10px; border-radius: 4px; z-index: 100;
-        }
-        #zoom-controls {
-            position: absolute; bottom: 20px; right: 20px;
-            z-index: 100;
-        }
-        button {
-            padding: 10px; margin: 5px;
-            background: #4CAF50; color: white;
-            border: none; border-radius: 4px;
-        }
-    </style>
+    <title>Application WebXR</title>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/loaders/FontLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/geometries/TextGeometry.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/webxr/VRButton.js"></script>
 </head>
 <body>
-    <div id="info">Déplacez votre appareil pour détecter des surfaces</div>
-    
-    <div id="zoom-controls">
-        <button id="zoom-out">-</button>
-        <button id="zoom-in">+</button>
-    </div>
-
-    <a-scene vr-mode-ui="enabled: false"
-             arjs="sourceType: webcam; detectionMode: mono_and_matrix; matrixCodeType: 3x3;"
-             renderer="logarithmicDepthBuffer: true; precision: medium;"
-             embedded>
-        
-        <!-- Caméra avec FOV réglable -->
-        <a-entity id="ar-camera" camera="fov: 60" position="0 0 0"></a-entity>
-        
-        <!-- Marqueur virtuel -->
-        <a-nft type="nft" url="https://arjs-cors-proxy.herokuapp.com/https://raw.githack.com/AR-js-org/AR.js/master/data/dataNFT/pinball">
-            <a-entity position="0 0 0" rotation="0 0 0">
-                <a-text value="Arroser cette plante" 
-                        color="white" align="center" 
-                        width="3" position="0 0.5 0" scale="1.5 1.5 1.5">
-                </a-text>
-                <a-plane color="#4CAF50" opacity="0.7" 
-                         height="0.5" width="2" position="0 0.25 0">
-                </a-plane>
-            </a-entity>
-        </a-nft>
-    </a-scene>
-
+    <button id="placeMarkerButton" style="position: absolute; z-index: 10; top: 10px; left: 10px;">Poser le marqueur virtuel</button>
     <script>
-        // Réglage du zoom
-        const camera = document.getElementById('ar-camera');
-        let currentFov = 60;
-        
-        document.getElementById('zoom-in').addEventListener('click', () => {
-            currentFov = Math.max(30, currentFov - 10);
-            camera.setAttribute('camera', 'fov', currentFov);
-        });
-        
-        document.getElementById('zoom-out').addEventListener('click', () => {
-            currentFov = Math.min(120, currentFov + 10);
-            camera.setAttribute('camera', 'fov', currentFov);
+        // Initialisation de la scène, de la caméra et du rendu
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.xr.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        // Ajout du bouton VR (WebXR)
+        document.body.appendChild(VRButton.createButton(renderer));
+
+        // Lumière
+        const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
+        scene.add(light);
+
+        // Fonction pour ajouter du texte 3D
+        let textMesh;
+        function addText(position) {
+            const loader = new THREE.FontLoader();
+            loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', function (font) {
+                const textGeometry = new THREE.TextGeometry('Arroser cette plante', {
+                    font: font,
+                    size: 0.1,
+                    height: 0.02,
+                });
+                const textMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
+                textMesh = new THREE.Mesh(textGeometry, textMaterial);
+                textMesh.position.set(position.x, position.y, position.z);
+                scene.add(textMesh);
+            });
+        }
+
+        // Gestion du bouton "Poser le marqueur virtuel"
+        const placeMarkerButton = document.getElementById("placeMarkerButton");
+        placeMarkerButton.addEventListener("click", () => {
+            if (renderer.xr.isPresenting) {
+                const viewerSpace = renderer.xr.getReferenceSpace();
+                const session = renderer.xr.getSession();
+                session.requestReferenceSpace('viewer').then((refSpace) => {
+                    const pose = session.inputSources[0].targetRaySpace;
+                    const viewerPose = session.getViewerPose(refSpace);
+                    if (viewerPose) {
+                        const position = {
+                            x: viewerPose.transform.position.x,
+                            y: viewerPose.transform.position.y,
+                            z: viewerPose.transform.position.z - 0.5 // Place le texte à 0.5 m devant
+                        };
+                        addText(position);
+                    }
+                });
+            } else {
+                alert('Activez le mode VR pour poser le marqueur.');
+            }
         });
 
-        // Détection quand AR est prêt
-        document.querySelector('a-scene').addEventListener('arReady', () => {
-            document.getElementById('info').textContent = "Déplacez pour trouver une surface plane";
-        });
+        // Animation de la scène
+        function animate() {
+            renderer.setAnimationLoop(() => {
+                renderer.render(scene, camera);
+            });
+        }
+
+        animate();
     </script>
 </body>
 </html>
