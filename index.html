@@ -131,7 +131,7 @@
         <a-nft type="nft" url="https://arjs-cors-proxy.herokuapp.com/https://raw.githack.com/AR-js-org/AR.js/master/data/dataNFT/pinball" smooth="true" smoothCount="10" smoothTolerance="0.01" smoothThreshold="5">
             <a-entity id="virtual-marker" visible="false">
                 <!-- Contenu AR à afficher -->
-                <a-entity id="ar-content" scale="1 1 1">
+                <a-entity id="ar-content" position="0 0 0" scale="1 1 1">
                     <a-text value="Arroser cette plante" 
                             color="white" 
                             align="center" 
@@ -204,6 +204,10 @@
             arButton.textContent = "Retirer le marqueur";
             info.textContent = "Marqueur placé: Arroser cette plante";
             
+            // Réinitialiser le zoom à chaque nouveau placement
+            currentZoom = 1.0;
+            updateZoom();
+            
             // Positionner le marqueur devant la caméra
             const camera = document.querySelector('[camera]');
             const cameraPosition = camera.getAttribute('position');
@@ -211,8 +215,8 @@
             
             virtualMarker.setAttribute('position', {
                 x: cameraPosition.x,
-                y: cameraPosition.y,
-                z: cameraPosition.z - 1 // 1 mètre devant la caméra
+                y: cameraPosition.y - 0.5, // Ajustement vertical
+                z: cameraPosition.z - 1.5 // 1.5 mètre devant la caméra
             });
             
             virtualMarker.setAttribute('rotation', {
@@ -233,7 +237,7 @@
         // Contrôle du zoom
         zoomInButton.addEventListener('click', () => {
             if (markerPlaced) {
-                currentZoom += 0.1;
+                currentZoom = Math.min(2.0, currentZoom + 0.1);
                 updateZoom();
             }
         });
@@ -252,6 +256,17 @@
                 z: currentZoom
             });
             zoomLevelDisplay.textContent = `Zoom: ${Math.round(currentZoom * 100)}%`;
+            
+            // Ajuster la position en fonction du zoom pour un meilleur centrage
+            const text = arContent.querySelector('a-text');
+            const plane = arContent.querySelector('a-plane');
+            
+            if (text && plane) {
+                text.setAttribute('position', { x: 0, y: 0.5 * currentZoom, z: 0 });
+                plane.setAttribute('position', { x: 0, y: 0.25 * currentZoom, z: 0 });
+                plane.setAttribute('width', 2 * currentZoom);
+                plane.setAttribute('height', 0.5 * currentZoom);
+            }
         }
 
         // Détection de surfaces pour améliorer le placement
