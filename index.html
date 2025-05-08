@@ -1,111 +1,66 @@
 <!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Contrôle Arduino - Jardin Connecté</title>
+<html>
+  <head>
+    <title>E-Jardin - AR Viewer</title>
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+    <script src="https://cdn.rawgit.com/jeromeetienne/ar.js/1.7.6/aframe/build/aframe-ar.min.js"></script>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            margin-top: 20px;
-        }
-        .button {
-            padding: 10px 20px;
-            font-size: 16px;
-            margin-top: 20px;
-            cursor: pointer;
-        }
-        #humidite {
-            font-size: 24px;
-            color: green;
-        }
+      body { margin: 0; overflow: hidden; }
+      #start-button {
+        position: absolute;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 10px 20px;
+        font-size: 16px;
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        z-index: 999;
+        cursor: pointer;
+      }
     </style>
-</head>
-<body>
-    <h1>Contrôle du Jardin Connecté</h1>
+  </head>
+  <body>
+    <button id="start-button">Poser le marqueur virtuel</button>
 
-    <div>
-        <h2>Humidité du sol: <span id="humidite">Chargement...</span></h2>
-    </div>
+    <a-scene embedded arjs>
 
-    <div>
-        <button id="connectButton" class="button">Se connecter à Arduino</button>
-    </div>
+      <!-- Caméra + lumière -->
+      <a-light type="directional" position="0 1 0" intensity="0.7"></a-light>
+      <a-camera-static />
 
-    <div>
-        <button id="btnPompe" class="button" disabled>Activer la Pompe</button>
-    </div>
+      <!-- Marqueur Hiro pour déclenchement à l'affichage -->
+      <a-marker id="real-marker" preset="hiro" visible="false">
+        <a-entity id="plant-data" position="0 0 0">
+          <a-box position="0 0.5 0" material="color: green" depth="0.3" height="0.3" width="0.3"></a-box>
+          <a-entity position="0 1 0">
+            <a-text id="plant-info" value="" align="center" color="white"></a-text>
+          </a-entity>
+        </a-entity>
+      </a-marker>
+
+      <a-entity camera></a-entity>
+    </a-scene>
 
     <script>
-        let port;
-        let reader;
-        let writer;
-        let decoder;
-        let encoder;
+      const button = document.getElementById("start-button");
+      const marker = document.getElementById("real-marker");
+      const info = document.getElementById("plant-info");
 
-        // Fonction pour se connecter à l'Arduino via la Web Serial API
-        async function connectToArduino() {
-            try {
-                // Demander à l'utilisateur de sélectionner un port série
-                port = await navigator.serial.requestPort();
-                await port.open({ baudRate: 9600 });
-                reader = port.readable.getReader();
-                writer = port.writable.getWriter();
+      const conseils = [
+        "Basilic\nHumidité : 35%\nLumière : OK\nArrosage léger aujourd'hui",
+        "Menthe\nHumidité : 50%\nLumière : moyenne\nPenser à brumiser les feuilles",
+        "Ficus\nHumidité : 28%\nLumière : faible\nApprocher d'une fenêtre"
+      ];
 
-                decoder = new TextDecoderStream();
-                encoder = new TextEncoderStream();
-                
-                // Lire les données série (humidité)
-                readFromPort();
-
-                // Mettre à jour le bouton pour activer/désactiver la pompe
-                document.getElementById('btnPompe').disabled = false;
-                document.getElementById('connectButton').textContent = "Connecté à Arduino";
-
-            } catch (err) {
-                console.error('Erreur de connexion:', err);
-                alert('Échec de la connexion à l\'Arduino. Vérifiez le câble et essayez à nouveau.');
-            }
-        }
-
-        // Lire les données envoyées par l'Arduino
-        async function readFromPort() {
-            try {
-                while (true) {
-                    const { value, done } = await reader.read();
-                    if (done) {
-                        break;
-                    }
-                    const humidite = value.trim();
-                    console.log('Humidité reçue:', humidite);
-                    document.getElementById('humidite').textContent = humidite + '%';
-                }
-            } catch (err) {
-                console.error('Erreur de lecture:', err);
-            }
-        }
-
-        // Envoyer une commande à l'Arduino
-        async function sendCommand(command) {
-            const data = new TextEncoder().encode(command + '\n');
-            await writer.write(data);
-        }
-
-        // Fonction pour activer/désactiver la pompe
-        function togglePompe() {
-            const btnPompe = document.getElementById('btnPompe');
-            const etatPompe = btnPompe.textContent === 'Activer la Pompe' ? 'ACTIVER_POMPE' : 'DESACTIVER_POMPE';
-
-            sendCommand(etatPompe).then(() => {
-                btnPompe.textContent = etatPompe === 'ACTIVER_POMPE' ? 'Désactiver la Pompe' : 'Activer la Pompe';
-            });
-        }
-
-        // Ajouter un événement pour le bouton de la pompe
-        document.getElementById('btnPompe').addEventListener('click', togglePompe);
-        document.getElementById('connectButton').addEventListener('click', connectToArduino);
-
+      button.addEventListener("click", () => {
+        const random = conseils[Math.floor(Math.random() * conseils.length)];
+        info.setAttribute("value", random);
+        marker.setAttribute("visible", "true");
+        button.style.display = "none";
+      });
     </script>
-</body>
+  </body>
 </html>
