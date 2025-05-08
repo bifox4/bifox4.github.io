@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <title>AR Viewer - Ianis</title>
     <style>
         body {
@@ -10,16 +11,15 @@
             overflow: hidden;
             background: #000;
             font-family: Arial, sans-serif;
+            touch-action: none;
         }
-        #ar-ui {
+        #arView {
             position: absolute;
-            top: 0;
-            left: 0;
             width: 100%;
             height: 100%;
-            z-index: 100;
+            display: none;
         }
-        #permission-btn {
+        #startButton {
             position: absolute;
             bottom: 30px;
             left: 50%;
@@ -30,7 +30,7 @@
             border: none;
             border-radius: 30px;
             font-size: 18px;
-            cursor: pointer;
+            z-index: 100;
         }
         #status {
             position: absolute;
@@ -40,75 +40,36 @@
             background: rgba(0,0,0,0.7);
             padding: 10px;
             border-radius: 5px;
-            max-width: 80%;
+            z-index: 100;
         }
     </style>
 </head>
 <body>
-    <div id="ar-ui">
-        <div id="status">Prêt à démarrer l'AR</div>
-        <button id="permission-btn">Activer la caméra AR</button>
-    </div>
+    <div id="arView"></div>
+    <div id="status">Prêt à démarrer l'AR</div>
+    <button id="startButton">Activer la caméra AR</button>
 
-    <!-- Three.js -->
+    <!-- Three.js from CDN -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>
-
+    
     <script>
         // Variables globales
-        let model, camera, scene, renderer;
+        let camera, scene, renderer;
+        let model;
         let xrSession = null;
-        const statusEl = document.getElementById('status');
-        const permissionBtn = document.getElementById('permission-btn');
 
-        // 1. Vérifier la compatibilité AR
-        async function checkARSupport() {
-            if (!navigator.xr) {
-                statusEl.textContent = "WebXR non supporté (utilisez Chrome Android ou Safari iOS 15+)";
-                return false;
-            }
-
-            try {
-                const supported = await navigator.xr.isSessionSupported('immersive-ar');
-                if (!supported) {
-                    statusEl.textContent = "AR non disponible sur cet appareil";
-                }
-                return supported;
-            } catch (error) {
-                console.error("Erreur de détection AR:", error);
-                return false;
-            }
-        }
-
-        // 2. Demander les permissions
-        async function requestCameraAccess() {
-            try {
-                // D'abord la permission camera normale
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                stream.getTracks().forEach(track => track.stop());
-                
-                // Puis init Three.js
-                await initARScene();
-                
-                // Enfin démarrer la session AR
-                await startARSession();
-                
-            } catch (error) {
-                statusEl.textContent = "Erreur: " + (error.message || "Permission caméra refusée");
-                console.error("Erreur permissions:", error);
-            }
-        }
-
-        // 3. Initialiser la scène 3D
-        async function initARScene() {
-            // Setup Three.js
+        // 1. Initialisation
+        async function init() {
+            // Créer la scène Three.js
             scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
             
+            // Configurer le renderer WebXR
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.xr.enabled = true;
-            document.body.prepend(renderer.domElement);
+            document.getElementById('arView').appendChild(renderer.domElement);
 
             // Charger le modèle
             try {
@@ -118,69 +79,104 @@
                 model.scale.set(0.5, 0.5, 0.5);
                 model.visible = false;
                 scene.add(model);
+                updateStatus("Modèle chargé. Cliquez pour démarrer l'AR");
             } catch (error) {
-                throw new Error("Erreur chargement modèle: " + error.message);
+                console.error("Erreur de chargement:", error);
+                updateStatus("Erreur de chargement du modèle", true);
+            }
+
+            // Gestion du bouton
+            document.getElementById('startButton').addEventListener('click', toggleAR);
+            
+            // Redimensionnement
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        // 2. Gestion AR
+        async function toggleAR() {
+            if (xrSession) {
+                await endAR();
+            } else {
+                await startAR();
             }
         }
 
-        // 4. Démarrer la session AR
-        async function startARSession() {
+        async function startAR() {
             try {
-                xrSession = await navigator.xr.requestSession('immersive-ar', {
-                    requiredFeatures: ['hit-test'],
-                    optionalFeatures: ['dom-overlay'],
-                    domOverlay: { root: document.body }
+                // Demande explicite d'accès à la caméra
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                stream.getTracks().forEach(track => track.stop());
+                
+                // Démarrer la session WebXR
+                const session = await navigator.xr.requestSession('immersive-ar', {
+                    requiredFeatures: ['local', 'hit-test'],
+                    optionalFeatures: ['dom-overlay']
                 });
                 
-                statusEl.textContent = "Recherche de surfaces... Touchez pour placer";
-                permissionBtn.style.display = 'none';
+                xrSession = session;
+                renderer.xr.setSession(session);
+                document.getElementById('arView').style.display = 'block';
+                updateStatus("Recherche de surfaces...");
                 
-                xrSession.addEventListener('end', endARSession);
-                renderer.xr.setSession(xrSession);
-                
-                // Configurer le contrôleur
-                const controller = renderer.xr.getController(0);
-                controller.addEventListener('select', placeModel);
-                scene.add(controller);
-                
+                // Configuration des événements
+                session.addEventListener('end', endAR);
                 renderer.setAnimationLoop(render);
                 
+                document.getElementById('startButton').textContent = "Quitter l'AR";
             } catch (error) {
-                throw new Error("Erreur session AR: " + error.message);
+                console.error("Erreur AR:", error);
+                updateStatus("Erreur: " + error.message, true);
             }
         }
 
-        // 5. Placer le modèle
-        function placeModel() {
-            if (model && !model.visible) {
-                model.position.set(0, 0, -1).applyMatrix4(controller.matrix);
-                model.visible = true;
-                statusEl.textContent = "Modèle placé! Déplacez-vous pour voir";
+        function endAR() {
+            if (xrSession) {
+                xrSession.end();
             }
         }
 
-        // 6. Arrêter l'AR
-        function endARSession() {
-            if (model) model.visible = false;
-            permissionBtn.style.display = 'block';
-            statusEl.textContent = "Session AR terminée";
+        function cleanupAR() {
+            document.getElementById('arView').style.display = 'none';
+            xrSession = null;
+            document.getElementById('startButton').textContent = "Activer la caméra AR";
+            updateStatus("Session AR terminée");
             renderer.setAnimationLoop(null);
         }
 
-        // 7. Boucle de rendu
+        // 3. Rendering
         function render() {
+            if (!renderer.xr.isPresenting) return;
+            
+            // Mettre à jour la position du modèle si nécessaire
             renderer.render(scene, camera);
         }
 
-        // Initialisation au chargement
-        (async function() {
-            const arSupported = await checkARSupport();
-            if (arSupported) {
-                permissionBtn.addEventListener('click', requestCameraAccess);
-            } else {
-                permissionBtn.style.display = 'none';
-            }
-        })();
+        // Utilitaires
+        function updateStatus(message, isError = false) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.style.color = isError ? '#ff4444' : 'white';
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // Démarrer l'application
+        if (navigator.xr) {
+            navigator.xr.isSessionSupported('immersive-ar')
+                .then((supported) => {
+                    if (supported) {
+                        init();
+                    } else {
+                        updateStatus("AR non supporté sur cet appareil", true);
+                    }
+                });
+        } else {
+            updateStatus("WebXR non disponible. Utilisez Chrome/Edge sur Android ou Safari iOS 15+", true);
+        }
     </script>
 </body>
 </html>
