@@ -19,13 +19,13 @@
 
       #fixButton {
         position: absolute;
-        top: 50px; /* Déplace le bouton plus haut */
+        top: 50px;
         left: 50%;
         transform: translateX(-50%);
         padding: 12px 24px;
         font-size: 16px;
         z-index: 1;
-        background-color: rgba(0, 0, 0, 0.5); /* Un fond léger pour que le bouton soit visible */
+        background-color: rgba(0, 0, 0, 0.5);
         color: white;
         border-radius: 8px;
         border: none;
@@ -55,11 +55,12 @@
       let reticle;
       let placingEnabled = false;
       let cameraPermissionGranted = false;
+      let videoTexture, videoMesh;
 
       init();
       animate();
 
-      function init() {
+      async function init() {
         scene = new THREE.Scene();
 
         camera = new THREE.PerspectiveCamera(
@@ -101,6 +102,7 @@
             onSessionStart: () => {
               messageElement.style.display = 'none'; // Cacher le message quand la session AR commence
               cameraPermissionGranted = true;
+              startCamera();
             }
           })
         );
@@ -196,6 +198,32 @@
             }
           });
         });
+      }
+
+      // Fonction pour initialiser la caméra vidéo et l'afficher
+      async function startCamera() {
+        const video = document.createElement('video');
+        video.width = window.innerWidth;
+        video.height = window.innerHeight;
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' },
+        });
+
+        video.srcObject = stream;
+        video.play();
+
+        // Créer une texture vidéo à appliquer à un matériau
+        videoTexture = new THREE.VideoTexture(video);
+        const videoMaterial = new THREE.MeshBasicMaterial({
+          map: videoTexture,
+          side: THREE.DoubleSide,
+        });
+
+        const geometry = new THREE.PlaneGeometry(5, 3);
+        videoMesh = new THREE.Mesh(geometry, videoMaterial);
+        videoMesh.position.z = -2; // Placer la vidéo derrière le texte
+        scene.add(videoMesh);
       }
 
       function animate() {
