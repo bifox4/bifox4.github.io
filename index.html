@@ -2,17 +2,17 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
-  <title>AR avec Flux Vidéo et Fixation d'Image</title>
+  <title>App AR complète</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     body {
       margin: 0;
       overflow: hidden;
       font-family: sans-serif;
-      background: black;
     }
 
-    video#camera-feed {
+    #camera-feed {
+      display: none;
       position: fixed;
       top: 0;
       left: 0;
@@ -33,147 +33,127 @@
       position: fixed;
       top: 10px;
       left: 10px;
-      z-index: 10;
-      background: rgba(255, 255, 255, 0.8);
+      background: rgba(255, 255, 255, 0.9);
       padding: 10px;
       border-radius: 8px;
+      z-index: 2;
       width: 250px;
     }
 
-    #ui input,
-    #ui button {
-      margin-top: 5px;
+    #ui input, #ui button {
       width: 100%;
+      margin: 5px 0;
     }
 
-    #ui button {
-      background-color: #4CAF50;
-      color: white;
-      border: none;
-      padding: 10px;
-      cursor: pointer;
-      border-radius: 5px;
-    }
-
-    #ui button:hover {
-      background-color: #45a049;
-    }
-
-    /* Style pour le bouton AR */
     #ar-button {
       position: fixed;
       top: 10px;
-      left: 10px;
-      z-index: 20;
-      background: rgba(0, 0, 0, 0.5);
+      right: 10px;
+      z-index: 3;
+      padding: 12px 20px;
+      font-size: 16px;
+      border: none;
+      background-color: #28a745;
+      color: white;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    #message {
+      position: fixed;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.7);
       color: white;
       padding: 10px 20px;
-      border-radius: 8px;
-      cursor: pointer;
+      border-radius: 6px;
+      font-size: 14px;
+      display: none;
+      z-index: 5;
     }
   </style>
 </head>
 <body>
-  <!-- Flux vidéo caméra -->
   <video id="camera-feed" autoplay muted playsinline></video>
 
-  <!-- UI contrôles -->
   <div id="ui">
     <input type="file" id="image-input" accept="image/*" />
     <label for="scale-slider">Taille</label>
-    <input type="range" id="scale-slider" min="0.1" max="3" value="1" step="0.1" />
+    <input type="range" id="scale-slider" min="0.1" max="3" step="0.1" value="1" />
     <label for="rotation-slider">Rotation</label>
     <input type="range" id="rotation-slider" min="0" max="360" value="0" />
-    <button id="reset-button">Réinitialiser</button>
-    <button id="fix-button">Fixer l'Image</button>
+    <button id="fix-button">Fixer l'image</button>
   </div>
 
-  <!-- Bouton Start AR -->
   <button id="ar-button">Start AR</button>
+  <div id="message">Image fixée !</div>
 
   <script type="module">
     import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js';
     import { ARButton } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/webxr/ARButton.js';
 
-    let camera, scene, renderer;
+    let scene, camera, renderer;
     let controller, reticle;
-    let placedImage = null;
     let hitTestSource = null;
     let hitTestSourceRequested = false;
+    let imageMesh = null;
     let imageTexture = null;
-    let currentScale = 1;
-    let currentRotation = 0;
     let isImageFixed = false;
 
-    // Demander l'accès à la caméra
     const video = document.getElementById('camera-feed');
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-      .then(stream => {
-        video.srcObject = stream;
-        video.play();
-      })
-      .catch(err => {
-        alert('Erreur d’accès à la caméra : ' + err.message);
+    const startButton = document.getElementById('ar-button');
+    const message = document.getElementById('message');
+
+    startButton.addEventListener('click', () => {
+      startCamera().then(() => {
+        initAR();
+        startButton.style.display = 'none';
       });
+    });
 
-    init();
-    animate();
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        video.srcObject = stream;
+        video.style.display = 'block';
+      } catch (err) {
+        alert('Accès caméra refusé : ' + err.message);
+      }
+    }
 
-    function init() {
-      const container = document.createElement('div');
-      document.body.appendChild(container);
-
+    function initAR() {
       scene = new THREE.Scene();
       camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
-
       renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.xr.enabled = true;
-      container.appendChild(renderer.domElement);
+      document.body.appendChild(renderer.domElement);
 
-      // Créer le bouton AR
-      const arButton = document.getElementById('ar-button');
-      arButton.addEventListener('click', () => {
-        document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] }));
-        arButton.style.display = 'none'; // Masquer le bouton une fois que l'AR est lancé
-      });
+      document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] }));
 
-      // Créer le réticule (marqueur)
-      const ringGeo = new THREE.RingGeometry(0.05, 0.06, 32).rotateX(-Math.PI / 2);
-      const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-      reticle = new THREE.Mesh(ringGeo, ringMat);
+      const geometry = new THREE.RingGeometry(0.1, 0.12, 32).rotateX(-Math.PI / 2);
+      const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+      reticle = new THREE.Mesh(geometry, material);
       reticle.matrixAutoUpdate = false;
       reticle.visible = false;
       scene.add(reticle);
 
       controller = renderer.xr.getController(0);
-      controller.addEventListener('select', onSelect);
+      controller.addEventListener('select', () => {
+        if (reticle.visible && imageTexture && !isImageFixed) {
+          placeImage();
+        }
+      });
       scene.add(controller);
 
-      // Gestion de l'image à charger
-      document.getElementById('image-input').addEventListener('change', handleImageUpload);
-      document.getElementById('scale-slider').addEventListener('input', (e) => {
-        currentScale = parseFloat(e.target.value);
-        if (placedImage && !isImageFixed) placedImage.scale.set(currentScale, currentScale, currentScale);
-      });
-      document.getElementById('rotation-slider').addEventListener('input', (e) => {
-        currentRotation = parseFloat(e.target.value);
-        if (placedImage && !isImageFixed) placedImage.rotation.y = THREE.MathUtils.degToRad(currentRotation);
-      });
-      document.getElementById('reset-button').addEventListener('click', () => {
-        if (placedImage) {
-          scene.remove(placedImage);
-          placedImage = null;
-        }
-        reticle.visible = false;
-        hitTestSourceRequested = false;
-        hitTestSource = null;
-        isImageFixed = false;
-      });
+      document.getElementById('image-input').addEventListener('change', handleImage);
+      document.getElementById('scale-slider').addEventListener('input', updateScale);
+      document.getElementById('rotation-slider').addEventListener('input', updateRotation);
       document.getElementById('fix-button').addEventListener('click', () => {
-        if (placedImage) {
-          isImageFixed = true; // Fixe l'image en place
-          reticle.visible = false;
+        if (imageMesh) {
+          isImageFixed = true;
+          showMessage("Image fixée !");
         }
       });
 
@@ -182,9 +162,11 @@
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
       });
+
+      renderer.setAnimationLoop(render);
     }
 
-    function handleImageUpload(event) {
+    function handleImage(event) {
       const file = event.target.files[0];
       if (!file) return;
 
@@ -192,31 +174,44 @@
       reader.onload = function (e) {
         const img = new Image();
         img.onload = function () {
-          const texture = new THREE.Texture(img);
-          texture.needsUpdate = true;
-          imageTexture = texture;
+          imageTexture = new THREE.Texture(img);
+          imageTexture.needsUpdate = true;
         };
         img.src = e.target.result;
       };
       reader.readAsDataURL(file);
     }
 
-    function onSelect() {
-      if (reticle.visible && imageTexture && !isImageFixed) {
-        const geometry = new THREE.PlaneGeometry(0.3, 0.3);
-        const material = new THREE.MeshBasicMaterial({ map: imageTexture, side: THREE.DoubleSide, transparent: true });
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.setFromMatrixPosition(reticle.matrix);
-        mesh.rotation.setFromRotationMatrix(reticle.matrix);
-        mesh.scale.set(currentScale, currentScale, currentScale);
-        mesh.rotation.y = THREE.MathUtils.degToRad(currentRotation);
-        scene.add(mesh);
-        placedImage = mesh;
+    function placeImage() {
+      const plane = new THREE.PlaneGeometry(0.5, 0.5);
+      const material = new THREE.MeshBasicMaterial({ map: imageTexture, transparent: true, side: THREE.DoubleSide });
+      imageMesh = new THREE.Mesh(plane, material);
+      imageMesh.matrixAutoUpdate = false;
+      imageMesh.applyMatrix4(reticle.matrix);
+      imageMesh.matrixAutoUpdate = true;
+      scene.add(imageMesh);
+    }
+
+    function updateScale(e) {
+      const scale = parseFloat(e.target.value);
+      if (imageMesh && !isImageFixed) {
+        imageMesh.scale.set(scale, scale, scale);
       }
     }
 
-    function animate() {
-      renderer.setAnimationLoop(render);
+    function updateRotation(e) {
+      const angle = parseFloat(e.target.value);
+      if (imageMesh && !isImageFixed) {
+        imageMesh.rotation.y = THREE.MathUtils.degToRad(angle);
+      }
+    }
+
+    function showMessage(text) {
+      message.textContent = text;
+      message.style.display = 'block';
+      setTimeout(() => {
+        message.style.display = 'none';
+      }, 2000);
     }
 
     function render(_, frame) {
@@ -230,12 +225,10 @@
               hitTestSource = source;
             });
           });
-
           session.addEventListener('end', () => {
             hitTestSourceRequested = false;
             hitTestSource = null;
           });
-
           hitTestSourceRequested = true;
         }
 
