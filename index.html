@@ -2,14 +2,30 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AR Plante - WebXR</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>AR Plante - WebXR avec Caméra</title>
     <style>
         body {
             margin: 0;
             padding: 0;
-            font-family: Arial, sans-serif;
             overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        
+        #video-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: 1;
+        }
+        
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
         
         #ar-button {
@@ -36,184 +52,208 @@
             position: absolute;
             top: 10px;
             left: 10px;
-            background-color: rgba(0, 0, 0, 0.5);
+            background-color: rgba(0, 0, 0, 0.7);
             color: white;
             padding: 10px;
             border-radius: 4px;
             z-index: 100;
+            max-width: 80%;
         }
         
-        #xr-canvas {
+        #ar-marker {
+            position: absolute;
+            color: white;
+            background-color: rgba(0, 100, 0, 0.7);
+            padding: 15px;
+            border-radius: 5px;
+            font-size: 18px;
+            display: none;
+            z-index: 50;
+            text-align: center;
+            border: 2px solid white;
+            transform: translate(-50%, -50%);
+        }
+        
+        #permission-request {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        #permission-button {
+            padding: 12px 24px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
         }
     </style>
 </head>
 <body>
-    <div id="info">
-        Appuyez sur le bouton pour placer le marqueur virtuel
+    <div id="permission-request">
+        <h2>Autorisation requise</h2>
+        <p>Cette application a besoin d'accéder à votre caméra pour fonctionner.</p>
+        <button id="permission-button">Autoriser la caméra</button>
     </div>
     
-    <button id="ar-button">Placer le marqueur</button>
+    <div id="video-container">
+        <video id="video" playsinline></video>
+    </div>
     
-    <canvas id="xr-canvas"></canvas>
+    <div id="info">
+        Appuyez sur le bouton pour placer le marqueur "Arroser cette plante"
+    </div>
     
-    <script type="module">
-        // Vérifier la compatibilité WebXR
-        if (!navigator.xr) {
-            document.getElementById('info').textContent = "WebXR n'est pas supporté par votre navigateur. Essayez avec Chrome ou Edge sur Android.";
-            document.getElementById('ar-button').disabled = true;
-        }
-        
-        // Variables globales
-        let xrSession = null;
-        let xrReferenceSpace = null;
-        let markerPlaced = false;
-        let markerTransform = null;
-        
+    <div id="ar-marker">Arroser cette plante</div>
+    
+    <button id="ar-button" disabled>Placer le marqueur</button>
+    
+    <script>
         // Éléments DOM
+        const permissionRequest = document.getElementById('permission-request');
+        const permissionButton = document.getElementById('permission-button');
+        const video = document.getElementById('video');
         const arButton = document.getElementById('ar-button');
-        const canvas = document.getElementById('xr-canvas');
-        const gl = canvas.getContext('webgl', { xrCompatible: true });
+        const arMarker = document.getElementById('ar-marker');
+        const info = document.getElementById('info');
         
-        // Initialiser Three.js (ou autre librairie 3D)
-        // Pour cet exemple, nous allons utiliser des primitives WebGL simples
+        // Variables d'état
+        let markerPlaced = false;
+        let trackingStarted = false;
+        let markerPosition = { x: 0, y: 0 };
         
-        // Fonction pour démarrer la session AR
-        async function startXRSession() {
+        // Demander l'accès à la caméra
+        permissionButton.addEventListener('click', async () => {
             try {
-                // Demander une session AR
-                const session = await navigator.xr.requestSession('immersive-ar', {
-                    requiredFeatures: ['local', 'hit-test'],
-                    optionalFeatures: ['dom-overlay'],
-                    domOverlay: { root: document.body }
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: 'environment',  // Préférer la caméra arrière
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
+                    },
+                    audio: false
                 });
                 
-                xrSession = session;
-                arButton.textContent = "Placer le marqueur";
-                markerPlaced = false;
+                video.srcObject = stream;
+                video.play();
                 
-                // Configurer le canvas WebGL pour WebXR
-                await gl.makeXRCompatible();
+                // Masquer la demande de permission
+                permissionRequest.style.display = 'none';
                 
-                session.updateRenderState({
-                    baseLayer: new XRWebGLLayer(session, gl)
-                });
+                // Activer le bouton AR
+                arButton.disabled = false;
                 
-                // Obtenir l'espace de référence
-                xrReferenceSpace = await session.requestReferenceSpace('local');
-                
-                // Démarrer la boucle de rendu
-                session.requestAnimationFrame(onXRFrame);
-                
-                // Gérer la fin de session
-                session.addEventListener('end', onXRSessionEnded);
+                info.textContent = "Déplacez votre appareil pour commencer le suivi";
                 
             } catch (error) {
-                console.error("Erreur lors du démarrage de la session AR:", error);
-                document.getElementById('info').textContent = "Erreur: " + error.message;
-            }
-        }
-        
-        // Fonction appelée à chaque frame
-        function onXRFrame(time, frame) {
-            const session = frame.session;
-            const referenceSpace = xrReferenceSpace;
-            
-            // Préparer le rendu
-            const pose = frame.getViewerPose(referenceSpace);
-            
-            if (pose) {
-                // Effacer le canvas
-                gl.clearColor(0, 0, 0, 0);
-                gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-                
-                // Rendu des vues (pour chaque œil en VR, une seule en AR)
-                for (const view of pose.views) {
-                    const viewport = session.renderState.baseLayer.getViewport(view);
-                    gl.viewport(viewport.x, viewport.y, viewport.width, viewport.height);
-                    
-                    // Ici, nous pourrions ajouter le rendu 3D
-                    // Pour cet exemple, nous gardons cela simple
-                }
-                
-                // Si le marqueur a été placé, nous l'affichons
-                if (markerPlaced && markerTransform) {
-                    // Créer un espace temporaire pour la position du marqueur
-                    const markerSpace = new XRRigidTransform(markerTransform.position, markerTransform.orientation);
-                    const markerViewerSpace = referenceSpace.getOffsetReferenceSpace(markerSpace);
-                    
-                    // Obtenir la position du marqueur par rapport à la caméra
-                    const markerPose = frame.getViewerPose(markerViewerSpace);
-                    
-                    if (markerPose) {
-                        // Ici, nous pourrions dessiner notre marqueur 3D
-                        // Pour cet exemple, nous allons simplement dessiner un carré rouge
-                        // En pratique, vous utiliseriez Three.js ou autre pour un meilleur rendu
-                        
-                        // Dessiner un simple marqueur (carré rouge)
-                        gl.viewport(0, 0, canvas.width, canvas.height);
-                        
-                        const projMatrix = markerPose.views[0].projectionMatrix;
-                        const viewMatrix = markerPose.views[0].transform.inverse.matrix;
-                        
-                        // Dessiner le texte "Arroser cette plante" en 3D
-                        // (Dans une vraie application, vous utiliseriez une librairie 3D pour cela)
-                        
-                        // Pour cet exemple, nous allons simplement afficher le texte dans l'info
-                        document.getElementById('info').textContent = "Marqueur placé: Arroser cette plante";
-                    }
-                }
-            }
-            
-            // Continuer la boucle de rendu
-            session.requestAnimationFrame(onXRFrame);
-        }
-        
-        // Fonction appelée lorsque la session AR se termine
-        function onXRSessionEnded() {
-            xrSession = null;
-            arButton.textContent = "Démarrer AR";
-            document.getElementById('info').textContent = "Session AR terminée. Appuyez sur le bouton pour recommencer.";
-        }
-        
-        // Gestionnaire d'événement pour le bouton
-        arButton.addEventListener('click', async () => {
-            if (xrSession) {
-                if (!markerPlaced) {
-                    // Placer le marqueur à la position actuelle de l'appareil
-                    const frame = await xrSession.requestAnimationFrame((time, frame) => {
-                        const pose = frame.getViewerPose(xrReferenceSpace);
-                        if (pose) {
-                            markerTransform = {
-                                position: { x: 0, y: 0, z: -1 }, // 1 mètre devant la caméra
-                                orientation: { x: 0, y: 0, z: 0, w: 1 }
-                            };
-                            markerPlaced = true;
-                            arButton.textContent = "Marqueur placé";
-                        }
-                    });
-                }
-            } else {
-                await startXRSession();
+                console.error("Erreur d'accès à la caméra:", error);
+                info.textContent = "Erreur: " + error.message;
+                permissionRequest.querySelector('p').textContent = 
+                    "Impossible d'accéder à la caméra. Veuillez vérifier les permissions.";
             }
         });
         
-        // Vérifier la disponibilité de WebXR AR
-        async function checkXRSupport() {
-            if (navigator.xr) {
-                const supported = await navigator.xr.isSessionSupported('immersive-ar');
-                if (!supported) {
-                    document.getElementById('info').textContent = "AR n'est pas supporté sur votre appareil.";
-                    arButton.disabled = true;
-                }
+        // Gestionnaire pour le bouton AR
+        arButton.addEventListener('click', () => {
+            if (!markerPlaced) {
+                // Placer le marqueur au centre de l'écran
+                placeMarkerAtCenter();
+                markerPlaced = true;
+                arButton.textContent = "Déplacer le marqueur";
+                info.textContent = "Marqueur placé: Arroser cette plante";
+            } else {
+                // Déplacer le marqueur
+                markerPlaced = false;
+                arMarker.style.display = 'none';
+                arButton.textContent = "Placer le marqueur";
+                info.textContent = "Déplacez votre appareil et appuyez pour placer le marqueur";
+            }
+        });
+        
+        // Placer le marqueur au centre de l'écran
+        function placeMarkerAtCenter() {
+            const centerX = window.innerWidth / 2;
+            const centerY = window.innerHeight / 2;
+            
+            markerPosition = {
+                x: centerX,
+                y: centerY
+            };
+            
+            arMarker.style.left = `${centerX}px`;
+            arMarker.style.top = `${centerY}px`;
+            arMarker.style.display = 'block';
+            
+            // Suivi approximatif basé sur le mouvement de l'appareil
+            if (!trackingStarted) {
+                startBasicTracking();
+                trackingStarted = true;
             }
         }
         
-        checkXRSupport();
+        // Suivi basique basé sur les événements de mouvement de l'appareil
+        function startBasicTracking() {
+            let lastBeta = null;
+            let lastGamma = null;
+            
+            window.addEventListener('deviceorientation', (event) => {
+                if (markerPlaced) {
+                    // Calculer le déplacement basé sur l'orientation
+                    if (lastBeta !== null && lastGamma !== null) {
+                        const betaDiff = (event.beta - lastBeta) * 2;
+                        const gammaDiff = (event.gamma - lastGamma) * 2;
+                        
+                        // Mettre à jour la position du marqueur
+                        markerPosition.x += gammaDiff;
+                        markerPosition.y += betaDiff;
+                        
+                        // Garder le marqueur dans les limites de l'écran
+                        markerPosition.x = Math.max(50, Math.min(window.innerWidth - 50, markerPosition.x));
+                        markerPosition.y = Math.max(50, Math.min(window.innerHeight - 100, markerPosition.y));
+                        
+                        // Mettre à jour la position à l'écran
+                        arMarker.style.left = `${markerPosition.x}px`;
+                        arMarker.style.top = `${markerPosition.y}px`;
+                    }
+                    
+                    lastBeta = event.beta;
+                    lastGamma = event.gamma;
+                }
+            });
+        }
+        
+        // Redimensionnement de la fenêtre
+        window.addEventListener('resize', () => {
+            if (markerPlaced) {
+                // Ajuster la position du marqueur si la fenêtre est redimensionnée
+                const centerX = window.innerWidth / 2;
+                const centerY = window.innerHeight / 2;
+                
+                // Conserver le décalage par rapport au centre
+                const offsetX = markerPosition.x - centerX;
+                const offsetY = markerPosition.y - centerY;
+                
+                markerPosition.x = centerX + offsetX;
+                markerPosition.y = centerY + offsetY;
+                
+                arMarker.style.left = `${markerPosition.x}px`;
+                arMarker.style.top = `${markerPosition.y}px`;
+            }
+        });
     </script>
 </body>
 </html>
