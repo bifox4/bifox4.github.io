@@ -95,7 +95,7 @@
             // 4. Charger le modèle GLB
             const loader = new THREE.GLTFLoader();
             try {
-                const gltf = await loader.loadAsync('./ianis.glb');
+                const gltf = await loader.loadAsync('/ianis.glb');
                 model = gltf.scene;
                 model.scale.set(0.5, 0.5, 0.5);
                 model.visible = false;
