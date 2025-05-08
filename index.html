@@ -1,10 +1,16 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Texte 3D sans marqueur (AR.js)</title>
+    <title>AR.js Sans Marqueur - Texte 3D</title>
     <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-    <script src="https://rawcdn.githack.com/jeromeetienne/AR.js/3.3.2/aframe/build/aframe-ar.min.js"></script>
+    <script src="https://rawcdn.githack.com/AR-js-org/AR.js/3.4.2/aframe/build/aframe-ar-nft.min.js"></script>
     <style>
+      body, html {
+        margin: 0;
+        overflow: hidden;
+        height: 100%;
+        width: 100%;
+      }
       #buttons {
         position: absolute;
         top: 10px;
@@ -12,25 +18,26 @@
         z-index: 10;
       }
       button {
-        margin: 5px;
         padding: 10px;
+        margin: 5px;
       }
     </style>
   </head>
-  <body style="margin: 0; overflow: hidden;">
+  <body>
     <div id="buttons">
       <button onclick="fixText()">Fixer position</button>
     </div>
 
     <a-scene
-      vr-mode-ui="enabled: false"
       embedded
       arjs="sourceType: webcam; debugUIEnabled: false;"
+      vr-mode-ui="enabled: false"
+      renderer="logarithmicDepthBuffer: true;"
     >
-      <!-- Texte 3D affiché dès le début -->
-      <a-entity id="text3D" position="0 0 -3" visible="true">
+      <!-- Texte flottant devant la caméra -->
+      <a-entity id="text3D" position="0 0 -2">
         <a-text
-          value="Texte virtuel 3D"
+          value="Texte AR Virtuel"
           color="blue"
           align="center"
           scale="3 3 3"
@@ -38,15 +45,16 @@
         ></a-text>
       </a-entity>
 
+      <!-- Caméra AR.js -->
       <a-entity camera></a-entity>
     </a-scene>
 
     <script>
       function fixText() {
-        // Fixer la position dans l'espace virtuel par rapport à la caméra
         const text = document.getElementById("text3D");
         text.setAttribute("position", { x: 1, y: 0, z: -2 });
       }
     </script>
   </body>
 </html>
+
