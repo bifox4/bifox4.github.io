@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AR Plante - Zoom Caméra</title>
+    <title>AR Plante - Dézoom 3x</title>
     <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
     <style>
@@ -100,8 +100,7 @@
 <body>
     <div id="permission-request">
         <h2>Application AR Plante</h2>
-        <p>Cette application utilise la réalité augmentée avec zoom de caméra.</p>
-        <p>Elle nécessite l'accès à votre caméra.</p>
+        <p>Cette application utilise la réalité augmentée avec grand angle.</p>
         <button id="permission-button">Autoriser la caméra et démarrer</button>
     </div>
 
@@ -109,7 +108,7 @@
         Déplacez votre appareil. Appuyez sur "Placer le marqueur" pour afficher les instructions.
     </div>
 
-    <div id="zoom-level">Zoom: 1x</div>
+    <div id="zoom-level">Zoom: 0.3x</div>
     
     <div class="control-panel">
         <button id="zoom-out">-</button>
@@ -125,19 +124,17 @@
 
         <!-- Marqueur virtuel -->
         <a-entity id="virtual-marker" visible="false">
-            <a-entity id="ar-content">
-                <a-text value="Arroser cette plante" 
-                        color="white" 
-                        align="center" 
-                        width="2"
-                        position="0 0.5 0"
-                        background="color: #4CAF50; opacity: 0.7; padding: 0.2">
-                </a-text>
-            </a-entity>
+            <a-text value="Arroser cette plante" 
+                    color="white" 
+                    align="center" 
+                    width="4.5"  <!-- Ajusté pour le dézoom 3x -->
+                    position="0 0 -2"  <!-- Plus éloigné pour compenser le zoom -->
+                    background="color: #4CAF50; opacity: 0.7; padding: 0.5">
+            </a-text>
         </a-entity>
 
-        <!-- Caméra AR avec contrôle de zoom -->
-        <a-entity id="ar-camera" camera="zoom: 1" position="0 0 0"></a-entity>
+        <!-- Caméra AR avec zoom initial très réduit (0.3x) -->
+        <a-entity id="ar-camera" camera="zoom: 0.3" position="0 0 0"></a-entity>
     </a-scene>
 
     <script>
@@ -155,7 +152,7 @@
 
         // Variables d'état
         let markerPlaced = false;
-        let currentZoom = 1;
+        let currentZoom = 0.3; // Zoom initial très réduit (3x moins zoomé)
 
         // Démarrer l'expérience AR
         permissionButton.addEventListener('click', async () => {
@@ -165,8 +162,8 @@
                 zoomInButton.disabled = false;
                 zoomOutButton.disabled = false;
                 
-                // Attendre que la scène soit prête
-                await new Promise(resolve => scene.addEventListener('loaded', resolve));
+                // Mise à jour initiale du zoom
+                updateCameraZoom();
                 
                 info.textContent = "Déplacez votre appareil. Appuyez sur 'Placer le marqueur'";
                 
@@ -180,10 +177,6 @@
         arButton.addEventListener('click', () => {
             if (!markerPlaced) {
                 virtualMarker.setAttribute('visible', 'true');
-                
-                // Positionner le marqueur 1.5m devant la caméra
-                virtualMarker.setAttribute('position', {x: 0, y: 0, z: -1.5});
-                
                 markerPlaced = true;
                 arButton.textContent = "Retirer le marqueur";
                 info.textContent = "Marqueur placé: Arroser cette plante";
@@ -197,23 +190,24 @@
 
         // Contrôle du zoom
         zoomInButton.addEventListener('click', () => {
-            currentZoom = Math.min(3, currentZoom + 0.2);
+            currentZoom = Math.min(1, currentZoom + 0.1);  // Zoom max 1x (normal)
             updateCameraZoom();
         });
 
         zoomOutButton.addEventListener('click', () => {
-            currentZoom = Math.max(0.5, currentZoom - 0.2);
+            currentZoom = Math.max(0.1, currentZoom - 0.1);  // Zoom min 0.1x (très large)
             updateCameraZoom();
         });
 
         function updateCameraZoom() {
+            // Appliquer le zoom à la caméra
             arCamera.setAttribute('camera', 'zoom', currentZoom);
             zoomLevelDisplay.textContent = `Zoom: ${currentZoom.toFixed(1)}x`;
             
-            // Ajuster la taille du texte en fonction du zoom
+            // Ajuster la taille du texte pour compenser le zoom
             const text = virtualMarker.querySelector('a-text');
             if (text) {
-                text.setAttribute('width', 2 / currentZoom);
+                text.setAttribute('width', 4.5 / currentZoom);
             }
         }
     </script>
