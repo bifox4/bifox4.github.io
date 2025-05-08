@@ -2,8 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>AR Viewer - Ianis</title>
     <style>
         body {
@@ -12,23 +11,15 @@
             background: #000;
             font-family: Arial, sans-serif;
         }
-        #container {
-            position: relative;
-            width: 100%;
-            height: 100vh;
-        }
-        #info {
+        #ar-ui {
             position: absolute;
-            top: 20px;
-            left: 20px;
-            color: white;
-            background: rgba(0,0,0,0.7);
-            padding: 10px;
-            border-radius: 5px;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             z-index: 100;
-            max-width: 80%;
         }
-        #startButton {
+        #permission-btn {
             position: absolute;
             bottom: 30px;
             left: 50%;
@@ -39,65 +30,87 @@
             border: none;
             border-radius: 30px;
             font-size: 18px;
-            z-index: 100;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            cursor: pointer;
         }
-        #loading {
+        #status {
             position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
+            top: 20px;
+            left: 20px;
             color: white;
-            font-size: 20px;
-            text-align: center;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 5px;
+            max-width: 80%;
         }
     </style>
 </head>
 <body>
-    <div id="container">
-        <div id="info">Attente de l'initialisation AR...</div>
-        <div id="loading">Chargement en cours...</div>
-        <button id="startButton">Démarrer l'AR</button>
+    <div id="ar-ui">
+        <div id="status">Prêt à démarrer l'AR</div>
+        <button id="permission-btn">Activer la caméra AR</button>
     </div>
 
-    <!-- Three.js depuis CDN avec fallback -->
+    <!-- Three.js -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>
-    
+
     <script>
         // Variables globales
-        let model;
-        let camera, scene, renderer;
-        let controller;
-        let isARSession = false;
+        let model, camera, scene, renderer;
+        let xrSession = null;
+        const statusEl = document.getElementById('status');
+        const permissionBtn = document.getElementById('permission-btn');
 
-        // Détection de compatibilité WebXR
-        async function checkXRSupport() {
+        // 1. Vérifier la compatibilité AR
+        async function checkARSupport() {
             if (!navigator.xr) {
-                document.getElementById('info').textContent = 
-                    "WebXR non supporté. Utilisez Chrome sur Android ou Safari iOS 15+.";
+                statusEl.textContent = "WebXR non supporté (utilisez Chrome Android ou Safari iOS 15+)";
                 return false;
             }
 
-            const supported = await navigator.xr.isSessionSupported('immersive-ar');
-            if (!supported) {
-                document.getElementById('info').textContent = 
-                    "AR non disponible. Vérifiez les permissions de la caméra.";
+            try {
+                const supported = await navigator.xr.isSessionSupported('immersive-ar');
+                if (!supported) {
+                    statusEl.textContent = "AR non disponible sur cet appareil";
+                }
+                return supported;
+            } catch (error) {
+                console.error("Erreur de détection AR:", error);
+                return false;
             }
-            return supported;
         }
 
-        // Initialisation Three.js
-        async function init() {
-            // 1. Créer la scène de base
+        // 2. Demander les permissions
+        async function requestCameraAccess() {
+            try {
+                // D'abord la permission camera normale
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                stream.getTracks().forEach(track => track.stop());
+                
+                // Puis init Three.js
+                await initARScene();
+                
+                // Enfin démarrer la session AR
+                await startARSession();
+                
+            } catch (error) {
+                statusEl.textContent = "Erreur: " + (error.message || "Permission caméra refusée");
+                console.error("Erreur permissions:", error);
+            }
+        }
+
+        // 3. Initialiser la scène 3D
+        async function initARScene() {
+            // Setup Three.js
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+            
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.xr.enabled = true;
-            document.getElementById('container').prepend(renderer.domElement);
+            document.body.prepend(renderer.domElement);
 
-            // 2. Charger le modèle
+            // Charger le modèle
             try {
                 const loader = new THREE.GLTFLoader();
                 const gltf = await loader.loadAsync('/ianis.glb');
@@ -105,91 +118,69 @@
                 model.scale.set(0.5, 0.5, 0.5);
                 model.visible = false;
                 scene.add(model);
-                document.getElementById('loading').style.display = 'none';
             } catch (error) {
-                console.error("Erreur de chargement:", error);
-                document.getElementById('loading').textContent = "Erreur de chargement du modèle";
+                throw new Error("Erreur chargement modèle: " + error.message);
             }
-
-            // 3. Configurer le bouton AR
-            const startButton = document.getElementById('startButton');
-            startButton.addEventListener('click', async () => {
-                if (!isARSession) {
-                    await startAR();
-                } else {
-                    endAR();
-                }
-            });
-
-            // 4. Vérifier la compatibilité
-            const hasXR = await checkXRSupport();
-            startButton.style.display = hasXR ? 'block' : 'none';
         }
 
-        // Démarrer la session AR
-        async function startAR() {
-            const sessionInit = { 
-                optionalFeatures: ['dom-overlay'],
-                domOverlay: { root: document.body }
-            };
-
+        // 4. Démarrer la session AR
+        async function startARSession() {
             try {
-                const session = await navigator.xr.requestSession('immersive-ar', sessionInit);
-                isARSession = true;
-                document.getElementById('startButton').textContent = "Quitter l'AR";
-                document.getElementById('info').textContent = "Recherche de surfaces... Touchez pour placer";
-
-                session.addEventListener('end', endAR);
-                renderer.xr.setSession(session);
-
-                // Configuration du contrôleur
-                controller = renderer.xr.getController(0);
-                controller.addEventListener('select', onSelect);
+                xrSession = await navigator.xr.requestSession('immersive-ar', {
+                    requiredFeatures: ['hit-test'],
+                    optionalFeatures: ['dom-overlay'],
+                    domOverlay: { root: document.body }
+                });
+                
+                statusEl.textContent = "Recherche de surfaces... Touchez pour placer";
+                permissionBtn.style.display = 'none';
+                
+                xrSession.addEventListener('end', endARSession);
+                renderer.xr.setSession(xrSession);
+                
+                // Configurer le contrôleur
+                const controller = renderer.xr.getController(0);
+                controller.addEventListener('select', placeModel);
                 scene.add(controller);
-
-                // Animation loop
+                
                 renderer.setAnimationLoop(render);
+                
             } catch (error) {
-                console.error("Erreur de session AR:", error);
-                document.getElementById('info').textContent = "Erreur: " + error.message;
+                throw new Error("Erreur session AR: " + error.message);
             }
         }
 
-        // Gestion de la sélection
-        function onSelect() {
+        // 5. Placer le modèle
+        function placeModel() {
             if (model && !model.visible) {
                 model.position.set(0, 0, -1).applyMatrix4(controller.matrix);
                 model.visible = true;
-                document.getElementById('info').textContent = "Modèle placé ! Déplacez-vous pour voir";
+                statusEl.textContent = "Modèle placé! Déplacez-vous pour voir";
             }
         }
 
-        // Arrêt de l'AR
-        function endAR() {
+        // 6. Arrêter l'AR
+        function endARSession() {
             if (model) model.visible = false;
-            isARSession = false;
-            document.getElementById('startButton').textContent = "Démarrer l'AR";
-            document.getElementById('info').textContent = "Session AR terminée";
+            permissionBtn.style.display = 'block';
+            statusEl.textContent = "Session AR terminée";
             renderer.setAnimationLoop(null);
         }
 
-        // Rendu
+        // 7. Boucle de rendu
         function render() {
             renderer.render(scene, camera);
         }
 
-        // Lancement de l'application
-        init().catch(error => {
-            console.error("Erreur d'initialisation:", error);
-            document.getElementById('loading').textContent = "Erreur: " + error.message;
-        });
-
-        // Redimensionnement
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
+        // Initialisation au chargement
+        (async function() {
+            const arSupported = await checkARSupport();
+            if (arSupported) {
+                permissionBtn.addEventListener('click', requestCameraAccess);
+            } else {
+                permissionBtn.style.display = 'none';
+            }
+        })();
     </script>
 </body>
 </html>
