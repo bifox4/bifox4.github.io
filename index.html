@@ -194,6 +194,10 @@
             info.textContent = "Erreur: " + error.message;
             console.error(error);
         });
+        // Détection mobile
+if (/Mobi|Android/i.test(navigator.userAgent)) {
+    camera.setAttribute('camera', 'fov', 70);
+}
     </script>
 </body>
 </html>
