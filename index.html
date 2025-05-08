@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
-  <title>RA avec Flux Vidéo et Fixation d'Image</title>
+  <title>AR avec Flux Vidéo et Fixation d'Image</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     body {
@@ -89,7 +89,7 @@
     let currentRotation = 0;
     let isImageFixed = false;
 
-    // Démarrer le flux caméra dès le début
+    // Demander l'accès à la caméra
     const video = document.getElementById('camera-feed');
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
       .then(stream => {
@@ -114,10 +114,10 @@
       renderer.xr.enabled = true;
       container.appendChild(renderer.domElement);
 
-      // Crée le bouton AR (si WebXR est pris en charge)
+      // Créer le bouton AR (si WebXR est pris en charge)
       document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] }));
 
-      // Reticle pour placer l'image
+      // Créer le réticule (marqueur)
       const ringGeo = new THREE.RingGeometry(0.05, 0.06, 32).rotateX(-Math.PI / 2);
       const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
       reticle = new THREE.Mesh(ringGeo, ringMat);
@@ -236,3 +236,4 @@
   </script>
 </body>
 </html>
+
