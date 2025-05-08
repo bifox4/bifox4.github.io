@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta charset="UTF-8">
   <title>RA : Image Fixe avec Hit-Testing</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- A-Frame et AR.js -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/jeromeetienne/ar.js/aframe/build/aframe-ar.min.js"></script>
+  <!-- Composant ar-hit-test -->
   <script src="https://cdn.jsdelivr.net/npm/aframe-ar-hit-test-component@1.0.0/dist/aframe-ar-hit-test-component.min.js"></script>
   <style>
     body, html {
@@ -60,10 +62,11 @@
 
   <!-- Scène A-Frame -->
   <a-scene
-    vr-mode-ui="enabled: false"
-    embedded
     webxr="optionalFeatures: hit-test;"
-    ar-hit-test="target: #projected-image;">
+    ar-hit-test="target: #projected-image;"
+    embedded
+    vr-mode-ui="enabled: false"
+    renderer="colorManagement: true; physicallyCorrectLights: true;">
     
     <!-- Image projetée -->
     <a-image 
@@ -74,8 +77,9 @@
       visible="false">
     </a-image>
 
-    <!-- Réticule pour indiquer la surface détectée -->
-    <a-entity id="reticle" geometry="primitive: ring; radiusInner: 0.05; radiusOuter: 0.06"
+    <!-- Réticule pour le placement -->
+    <a-entity id="reticle" 
+              geometry="primitive: ring; radiusInner: 0.05; radiusOuter: 0.06"
               material="color: green; shader: flat"
               position="0 0 -1"
               visible="false">
@@ -99,7 +103,7 @@
 
     let isMarkerFixed = false;
 
-    // Gestion de l'importation d'images
+    // Importation d'image
     imageInput.addEventListener('change', (event) => {
       const file = event.target.files[0];
       if (file) {
@@ -124,11 +128,12 @@
       projectedImage.setAttribute('rotation', `0 ${rotationValue} 0`);
     });
 
-    // Événement de détection de surface
+    // Placement de l'image sur la surface détectée
     sceneEl.addEventListener('ar-hit-test-select', (event) => {
       if (!isMarkerFixed) {
         const position = event.detail.position;
         const rotation = event.detail.rotation;
+
         projectedImage.setAttribute('position', position);
         projectedImage.setAttribute('rotation', rotation);
         projectedImage.setAttribute('visible', 'true');
@@ -136,13 +141,13 @@
       }
     });
 
-    // Bouton pour fixer définitivement le marqueur
+    // Fixation du marqueur
     placeMarkerButton.addEventListener('click', () => {
-      if (!isMarkerFixed && projectedImage.getAttribute('visible') === 'true') {
+      if (projectedImage.getAttribute('visible')) {
         isMarkerFixed = true;
         alert('Marqueur fixé à cette position.');
-      } else if (!isMarkerFixed) {
-        alert('Veuillez d\'abord sélectionner une position en tapant sur une surface détectée.');
+      } else {
+        alert('Veuillez d\'abord placer l\'image sur une surface détectée.');
       }
     });
 
@@ -151,8 +156,9 @@
       isMarkerFixed = false;
       projectedImage.setAttribute('visible', 'false');
       reticle.setAttribute('visible', 'true');
-      alert('Marqueur réinitialisé. Veuillez sélectionner une nouvelle position.');
+      alert('Marqueur réinitialisé. Cliquez pour choisir une nouvelle position.');
     });
   </script>
 </body>
 </html>
+
