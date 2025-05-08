@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AR Virtuelle - Contrôle de Plante</title>
+    <title>AR Plante - Zoom Caméra</title>
     <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
     <style>
@@ -28,7 +28,7 @@
         
         .control-panel {
             position: absolute;
-            bottom: 80px;
+            bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
             display: flex;
@@ -54,10 +54,6 @@
             border-radius: 4px;
             font-size: 16px;
             cursor: pointer;
-        }
-        
-        .ar-marker {
-            display: none;
         }
         
         #permission-request {
@@ -90,7 +86,7 @@
         
         #zoom-level {
             position: absolute;
-            bottom: 140px;
+            bottom: 80px;
             left: 50%;
             transform: translateX(-50%);
             background-color: rgba(0, 0, 0, 0.7);
@@ -104,16 +100,16 @@
 <body>
     <div id="permission-request">
         <h2>Application AR Plante</h2>
-        <p>Cette application utilise la réalité augmentée avec contrôle de zoom.</p>
+        <p>Cette application utilise la réalité augmentée avec zoom de caméra.</p>
         <p>Elle nécessite l'accès à votre caméra.</p>
         <button id="permission-button">Autoriser la caméra et démarrer</button>
     </div>
 
     <div id="info">
-        Déplacez votre appareil pour détecter des surfaces. Appuyez sur le bouton pour placer le marqueur.
+        Déplacez votre appareil. Appuyez sur "Placer le marqueur" pour afficher les instructions.
     </div>
 
-    <div id="zoom-level">Zoom: 100%</div>
+    <div id="zoom-level">Zoom: 1x</div>
     
     <div class="control-panel">
         <button id="zoom-out">-</button>
@@ -127,29 +123,21 @@
         renderer="logarithmicDepthBuffer: true; precision: medium;"
         embedded>
 
-        <!-- Marqueur virtuel (invisible) -->
-        <a-nft type="nft" url="https://arjs-cors-proxy.herokuapp.com/https://raw.githack.com/AR-js-org/AR.js/master/data/dataNFT/pinball" smooth="true" smoothCount="10" smoothTolerance="0.01" smoothThreshold="5">
-            <a-entity id="virtual-marker" visible="false">
-                <!-- Contenu AR à afficher -->
-                <a-entity id="ar-content" position="0 0 0" scale="1 1 1">
-                    <a-text value="Arroser cette plante" 
-                            color="white" 
-                            align="center" 
-                            width="3"
-                            position="0 0.5 0">
-                    </a-text>
-                    <a-plane color="#4CAF50" 
-                             opacity="0.7" 
-                             height="0.5" 
-                             width="2"
-                             position="0 0.25 0">
-                    </a-plane>
-                </a-entity>
+        <!-- Marqueur virtuel -->
+        <a-entity id="virtual-marker" visible="false">
+            <a-entity id="ar-content">
+                <a-text value="Arroser cette plante" 
+                        color="white" 
+                        align="center" 
+                        width="2"
+                        position="0 0.5 0"
+                        background="color: #4CAF50; opacity: 0.7; padding: 0.2">
+                </a-text>
             </a-entity>
-        </a-nft>
+        </a-entity>
 
-        <!-- Caméra AR -->
-        <a-entity camera></a-entity>
+        <!-- Caméra AR avec contrôle de zoom -->
+        <a-entity id="ar-camera" camera="zoom: 1" position="0 0 0"></a-entity>
     </a-scene>
 
     <script>
@@ -162,125 +150,72 @@
         const zoomLevelDisplay = document.getElementById('zoom-level');
         const info = document.getElementById('info');
         const virtualMarker = document.getElementById('virtual-marker');
-        const arContent = document.getElementById('ar-content');
+        const arCamera = document.getElementById('ar-camera');
         const scene = document.querySelector('a-scene');
 
         // Variables d'état
         let markerPlaced = false;
-        let arSessionStarted = false;
-        let currentZoom = 1.0;
+        let currentZoom = 1;
 
         // Démarrer l'expérience AR
-        permissionButton.addEventListener('click', () => {
-            permissionRequest.style.display = 'none';
-            arButton.disabled = false;
-            zoomInButton.disabled = false;
-            zoomOutButton.disabled = false;
-            
-            // Attendre que la scène AR soit prête
-            scene.addEventListener('arReady', () => {
-                info.textContent = "Système AR prêt. Déplacez votre appareil pour détecter des surfaces.";
-                arSessionStarted = true;
-            });
-            
-            scene.addEventListener('arError', () => {
-                info.textContent = "Erreur lors du démarrage de l'AR. Essayez de recharger la page.";
-            });
-        });
-
-        // Gestion du bouton AR
-        arButton.addEventListener('click', () => {
-            if (!markerPlaced) {
-                placeMarker();
-            } else {
-                removeMarker();
+        permissionButton.addEventListener('click', async () => {
+            try {
+                permissionRequest.style.display = 'none';
+                arButton.disabled = false;
+                zoomInButton.disabled = false;
+                zoomOutButton.disabled = false;
+                
+                // Attendre que la scène soit prête
+                await new Promise(resolve => scene.addEventListener('loaded', resolve));
+                
+                info.textContent = "Déplacez votre appareil. Appuyez sur 'Placer le marqueur'";
+                
+            } catch (error) {
+                info.textContent = "Erreur: " + error.message;
+                console.error(error);
             }
         });
 
-        // Fonction pour placer le marqueur
-        function placeMarker() {
-            virtualMarker.setAttribute('visible', 'true');
-            markerPlaced = true;
-            arButton.textContent = "Retirer le marqueur";
-            info.textContent = "Marqueur placé: Arroser cette plante";
-            
-            // Réinitialiser le zoom à chaque nouveau placement
-            currentZoom = 1.0;
-            updateZoom();
-            
-            // Positionner le marqueur devant la caméra
-            const camera = document.querySelector('[camera]');
-            const cameraPosition = camera.getAttribute('position');
-            const cameraRotation = camera.getAttribute('rotation');
-            
-            virtualMarker.setAttribute('position', {
-                x: cameraPosition.x,
-                y: cameraPosition.y - 0.5, // Ajustement vertical
-                z: cameraPosition.z - 1.5 // 1.5 mètre devant la caméra
-            });
-            
-            virtualMarker.setAttribute('rotation', {
-                x: 0,
-                y: cameraRotation.y,
-                z: 0
-            });
-        }
-
-        // Fonction pour retirer le marqueur
-        function removeMarker() {
-            virtualMarker.setAttribute('visible', 'false');
-            markerPlaced = false;
-            arButton.textContent = "Placer le marqueur";
-            info.textContent = "Déplacez votre appareil et appuyez pour placer le marqueur";
-        }
+        // Placer le marqueur
+        arButton.addEventListener('click', () => {
+            if (!markerPlaced) {
+                virtualMarker.setAttribute('visible', 'true');
+                
+                // Positionner le marqueur 1.5m devant la caméra
+                virtualMarker.setAttribute('position', {x: 0, y: 0, z: -1.5});
+                
+                markerPlaced = true;
+                arButton.textContent = "Retirer le marqueur";
+                info.textContent = "Marqueur placé: Arroser cette plante";
+            } else {
+                virtualMarker.setAttribute('visible', 'false');
+                markerPlaced = false;
+                arButton.textContent = "Placer le marqueur";
+                info.textContent = "Déplacez votre appareil. Appuyez sur 'Placer le marqueur'";
+            }
+        });
 
         // Contrôle du zoom
         zoomInButton.addEventListener('click', () => {
-            if (markerPlaced) {
-                currentZoom = Math.min(2.0, currentZoom + 0.1);
-                updateZoom();
-            }
+            currentZoom = Math.min(3, currentZoom + 0.2);
+            updateCameraZoom();
         });
 
         zoomOutButton.addEventListener('click', () => {
-            if (markerPlaced) {
-                currentZoom = Math.max(0.5, currentZoom - 0.1);
-                updateZoom();
-            }
+            currentZoom = Math.max(0.5, currentZoom - 0.2);
+            updateCameraZoom();
         });
 
-        function updateZoom() {
-            arContent.setAttribute('scale', {
-                x: currentZoom,
-                y: currentZoom,
-                z: currentZoom
-            });
-            zoomLevelDisplay.textContent = `Zoom: ${Math.round(currentZoom * 100)}%`;
+        function updateCameraZoom() {
+            arCamera.setAttribute('camera', 'zoom', currentZoom);
+            zoomLevelDisplay.textContent = `Zoom: ${currentZoom.toFixed(1)}x`;
             
-            // Ajuster la position en fonction du zoom pour un meilleur centrage
-            const text = arContent.querySelector('a-text');
-            const plane = arContent.querySelector('a-plane');
-            
-            if (text && plane) {
-                text.setAttribute('position', { x: 0, y: 0.5 * currentZoom, z: 0 });
-                plane.setAttribute('position', { x: 0, y: 0.25 * currentZoom, z: 0 });
-                plane.setAttribute('width', 2 * currentZoom);
-                plane.setAttribute('height', 0.5 * currentZoom);
+            // Ajuster la taille du texte en fonction du zoom
+            const text = virtualMarker.querySelector('a-text');
+            if (text) {
+                text.setAttribute('width', 2 / currentZoom);
             }
         }
-
-        // Détection de surfaces pour améliorer le placement
-        scene.addEventListener('markerFound', () => {
-            if (!markerPlaced) {
-                info.textContent = "Surface détectée. Appuyez sur le bouton pour placer le marqueur.";
-            }
-        });
-
-        // Gestion des erreurs
-        window.addEventListener('error', (error) => {
-            info.textContent = "Erreur: " + error.message;
-            console.error(error);
-        });
     </script>
 </body>
 </html>
