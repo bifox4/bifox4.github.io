@@ -2,99 +2,104 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>AR Viewer - Ianis</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
-            font-family: Arial, sans-serif;
             background: #000;
-            color: white;
+            font-family: Arial, sans-serif;
+        }
+        #container {
+            position: relative;
+            width: 100%;
+            height: 100vh;
         }
         #info {
             position: absolute;
-            top: 10px;
-            left: 10px;
-            background: rgba(0,0,0,0.8);
+            top: 20px;
+            left: 20px;
+            color: white;
+            background: rgba(0,0,0,0.7);
             padding: 10px;
             border-radius: 5px;
-            font-size: 14px;
             z-index: 100;
+            max-width: 80%;
         }
-        #arButton {
-            position: fixed;
-            bottom: 20px;
+        #startButton {
+            position: absolute;
+            bottom: 30px;
             left: 50%;
             transform: translateX(-50%);
-            padding: 12px 24px;
+            padding: 15px 30px;
             background: #007AFF;
             color: white;
             border: none;
             border-radius: 30px;
-            font-size: 16px;
-            cursor: pointer;
+            font-size: 18px;
             z-index: 100;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
         }
         #loading {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 18px;
+            color: white;
+            font-size: 20px;
+            text-align: center;
         }
     </style>
 </head>
 <body>
-    <div id="info">
-        Déplacez votre appareil pour trouver une surface plane
+    <div id="container">
+        <div id="info">Attente de l'initialisation AR...</div>
+        <div id="loading">Chargement en cours...</div>
+        <button id="startButton">Démarrer l'AR</button>
     </div>
-    <div id="loading">Chargement du modèle...</div>
-    <button id="arButton">Activer la RA</button>
 
-    <!-- Import Three.js -->
+    <!-- Three.js depuis CDN avec fallback -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/webxr/ARButton.js"></script>
-
+    
     <script>
         // Variables globales
         let model;
-        let reticle;
-        let anchorSet = false;
+        let camera, scene, renderer;
+        let controller;
+        let isARSession = false;
 
-        // Initialisation
+        // Détection de compatibilité WebXR
+        async function checkXRSupport() {
+            if (!navigator.xr) {
+                document.getElementById('info').textContent = 
+                    "WebXR non supporté. Utilisez Chrome sur Android ou Safari iOS 15+.";
+                return false;
+            }
+
+            const supported = await navigator.xr.isSessionSupported('immersive-ar');
+            if (!supported) {
+                document.getElementById('info').textContent = 
+                    "AR non disponible. Vérifiez les permissions de la caméra.";
+            }
+            return supported;
+        }
+
+        // Initialisation Three.js
         async function init() {
-            // 1. Créer la scène Three.js
-            const scene = new THREE.Scene();
-            const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
-            const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            
+            // 1. Créer la scène de base
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(window.devicePixelRatio);
             renderer.xr.enabled = true;
-            document.body.appendChild(renderer.domElement);
+            document.getElementById('container').prepend(renderer.domElement);
 
-            // 2. Ajouter un éclairage
-            const light = new THREE.AmbientLight(0xffffff, 1);
-            scene.add(light);
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-            directionalLight.position.set(0, 1, 0);
-            scene.add(directionalLight);
-
-            // 3. Créer un réticule pour le placement
-            reticle = new THREE.Mesh(
-                new THREE.RingGeometry(0.1, 0.2, 32).rotateX(-Math.PI / 2),
-                new THREE.MeshBasicMaterial({ color: 0x00ff00 })
-            );
-            reticle.visible = false;
-            scene.add(reticle);
-
-            // 4. Charger le modèle GLB
-            const loader = new THREE.GLTFLoader();
+            // 2. Charger le modèle
             try {
+                const loader = new THREE.GLTFLoader();
                 const gltf = await loader.loadAsync('/ianis.glb');
                 model = gltf.scene;
                 model.scale.set(0.5, 0.5, 0.5);
@@ -106,64 +111,84 @@
                 document.getElementById('loading').textContent = "Erreur de chargement du modèle";
             }
 
-            // 5. Configurer WebXR
-            const arButton = ARButton.createButton(renderer, { 
-                requiredFeatures: ['hit-test'],
-                optionalFeatures: ['dom-overlay'],
-                domOverlay: { root: document.body }
-            });
-            document.body.appendChild(arButton);
-
-            // 6. Gestion des interactions
-            const btn = document.getElementById('arButton');
-            btn.addEventListener('click', () => {
-                if (!anchorSet && model) {
-                    model.position.copy(reticle.position);
-                    model.visible = true;
-                    anchorSet = true;
-                    reticle.visible = false;
-                    btn.textContent = "Réinitialiser";
+            // 3. Configurer le bouton AR
+            const startButton = document.getElementById('startButton');
+            startButton.addEventListener('click', async () => {
+                if (!isARSession) {
+                    await startAR();
                 } else {
-                    if (model) model.visible = false;
-                    anchorSet = false;
-                    btn.textContent = "Placer l'objet";
+                    endAR();
                 }
             });
 
-            // 7. Animation et détection des surfaces
-            renderer.setAnimationLoop((timestamp, frame) => {
-                if (frame) {
-                    const referenceSpace = renderer.xr.getReferenceSpace();
-                    const session = renderer.xr.getSession();
-                    
-                    if (session && !anchorSet) {
-                        session.requestHitTestSource({ space: referenceSpace }).then((hitTestSource) => {
-                            const hitTestResults = frame.getHitTestResults(hitTestSource);
-                            if (hitTestResults.length > 0) {
-                                const hit = hitTestResults[0];
-                                reticle.visible = true;
-                                reticle.position.setFromMatrixPosition(hit.getPose(referenceSpace).transform.matrix);
-                            } else {
-                                reticle.visible = false;
-                            }
-                        });
-                    }
-                }
-                renderer.render(scene, camera);
-            });
-
-            // 8. Redimensionnement
-            window.addEventListener('resize', () => {
-                camera.aspect = window.innerWidth / window.innerHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(window.innerWidth, window.innerHeight);
-            });
+            // 4. Vérifier la compatibilité
+            const hasXR = await checkXRSupport();
+            startButton.style.display = hasXR ? 'block' : 'none';
         }
 
-        // Démarrer l'application
-        init().catch((err) => {
-            console.error("Erreur d'initialisation:", err);
-            document.getElementById('loading').textContent = "Erreur : " + err.message;
+        // Démarrer la session AR
+        async function startAR() {
+            const sessionInit = { 
+                optionalFeatures: ['dom-overlay'],
+                domOverlay: { root: document.body }
+            };
+
+            try {
+                const session = await navigator.xr.requestSession('immersive-ar', sessionInit);
+                isARSession = true;
+                document.getElementById('startButton').textContent = "Quitter l'AR";
+                document.getElementById('info').textContent = "Recherche de surfaces... Touchez pour placer";
+
+                session.addEventListener('end', endAR);
+                renderer.xr.setSession(session);
+
+                // Configuration du contrôleur
+                controller = renderer.xr.getController(0);
+                controller.addEventListener('select', onSelect);
+                scene.add(controller);
+
+                // Animation loop
+                renderer.setAnimationLoop(render);
+            } catch (error) {
+                console.error("Erreur de session AR:", error);
+                document.getElementById('info').textContent = "Erreur: " + error.message;
+            }
+        }
+
+        // Gestion de la sélection
+        function onSelect() {
+            if (model && !model.visible) {
+                model.position.set(0, 0, -1).applyMatrix4(controller.matrix);
+                model.visible = true;
+                document.getElementById('info').textContent = "Modèle placé ! Déplacez-vous pour voir";
+            }
+        }
+
+        // Arrêt de l'AR
+        function endAR() {
+            if (model) model.visible = false;
+            isARSession = false;
+            document.getElementById('startButton').textContent = "Démarrer l'AR";
+            document.getElementById('info').textContent = "Session AR terminée";
+            renderer.setAnimationLoop(null);
+        }
+
+        // Rendu
+        function render() {
+            renderer.render(scene, camera);
+        }
+
+        // Lancement de l'application
+        init().catch(error => {
+            console.error("Erreur d'initialisation:", error);
+            document.getElementById('loading').textContent = "Erreur: " + error.message;
+        });
+
+        // Redimensionnement
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
         });
     </script>
 </body>
