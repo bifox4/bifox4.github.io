@@ -1,215 +1,170 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AR Plante - Dézoom 3x</title>
-    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>AR Viewer - Ianis</title>
     <style>
         body {
             margin: 0;
-            padding: 0;
             overflow: hidden;
             font-family: Arial, sans-serif;
+            background: #000;
+            color: white;
         }
-        
         #info {
             position: absolute;
             top: 10px;
             left: 10px;
-            background-color: rgba(0, 0, 0, 0.7);
-            color: white;
+            background: rgba(0,0,0,0.8);
             padding: 10px;
-            border-radius: 4px;
+            border-radius: 5px;
+            font-size: 14px;
             z-index: 100;
-            max-width: 80%;
         }
-        
-        .control-panel {
-            position: absolute;
+        #arButton {
+            position: fixed;
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            display: flex;
-            gap: 10px;
+            padding: 12px 24px;
+            background: #007AFF;
+            color: white;
+            border: none;
+            border-radius: 30px;
+            font-size: 16px;
+            cursor: pointer;
             z-index: 100;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
-        
-        #ar-button {
-            padding: 12px 24px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            font-size: 16px;
-            cursor: pointer;
-        }
-        
-        #zoom-in, #zoom-out {
-            padding: 12px 20px;
-            background-color: #2196F3;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            font-size: 16px;
-            cursor: pointer;
-        }
-        
-        #permission-request {
+        #loading {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.9);
-            color: white;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 200;
-            text-align: center;
-            padding: 20px;
-        }
-        
-        #permission-button {
-            padding: 12px 24px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            font-size: 16px;
-            cursor: pointer;
-            margin-top: 20px;
-        }
-        
-        #zoom-level {
-            position: absolute;
-            bottom: 80px;
+            top: 50%;
             left: 50%;
-            transform: translateX(-50%);
-            background-color: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 5px 10px;
-            border-radius: 4px;
-            z-index: 100;
+            transform: translate(-50%, -50%);
+            font-size: 18px;
         }
     </style>
 </head>
 <body>
-    <div id="permission-request">
-        <h2>Application AR Plante</h2>
-        <p>Cette application utilise la réalité augmentée avec grand angle.</p>
-        <button id="permission-button">Autoriser la caméra et démarrer</button>
-    </div>
-
     <div id="info">
-        Déplacez votre appareil. Appuyez sur "Placer le marqueur" pour afficher les instructions.
+        Déplacez votre appareil pour trouver une surface plane
     </div>
+    <div id="loading">Chargement du modèle...</div>
+    <button id="arButton">Activer la RA</button>
 
-    <div id="zoom-level">Zoom: 0.3x</div>
-    
-    <div class="control-panel">
-        <button id="zoom-out">-</button>
-        <button id="ar-button" disabled>Placer le marqueur</button>
-        <button id="zoom-in">+</button>
-    </div>
-
-    <a-scene 
-        vr-mode-ui="enabled: false"
-        arjs="sourceType: webcam; detectionMode: mono_and_matrix; matrixCodeType: 3x3;"
-        renderer="logarithmicDepthBuffer: true; precision: medium;"
-        embedded>
-
-        <!-- Marqueur virtuel -->
-        <a-entity id="virtual-marker" visible="false">
-            <a-text value="Arroser cette plante" 
-                    color="white" 
-                    align="center" 
-                    width="4.5"  <!-- Ajusté pour le dézoom 3x -->
-                    position="0 0 -2"  <!-- Plus éloigné pour compenser le zoom -->
-                    background="color: #4CAF50; opacity: 0.7; padding: 0.5">
-            </a-text>
-        </a-entity>
-
-        <!-- Caméra AR avec zoom initial très réduit (0.3x) -->
-        <a-entity id="ar-camera" camera="zoom: 0.3" position="0 0 0"></a-entity>
-    </a-scene>
+    <!-- Import Three.js -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/webxr/ARButton.js"></script>
 
     <script>
-        // Éléments DOM
-        const permissionRequest = document.getElementById('permission-request');
-        const permissionButton = document.getElementById('permission-button');
-        const arButton = document.getElementById('ar-button');
-        const zoomInButton = document.getElementById('zoom-in');
-        const zoomOutButton = document.getElementById('zoom-out');
-        const zoomLevelDisplay = document.getElementById('zoom-level');
-        const info = document.getElementById('info');
-        const virtualMarker = document.getElementById('virtual-marker');
-        const arCamera = document.getElementById('ar-camera');
-        const scene = document.querySelector('a-scene');
+        // Variables globales
+        let model;
+        let reticle;
+        let anchorSet = false;
 
-        // Variables d'état
-        let markerPlaced = false;
-        let currentZoom = 0.3; // Zoom initial très réduit (3x moins zoomé)
-
-        // Démarrer l'expérience AR
-        permissionButton.addEventListener('click', async () => {
-            try {
-                permissionRequest.style.display = 'none';
-                arButton.disabled = false;
-                zoomInButton.disabled = false;
-                zoomOutButton.disabled = false;
-                
-                // Mise à jour initiale du zoom
-                updateCameraZoom();
-                
-                info.textContent = "Déplacez votre appareil. Appuyez sur 'Placer le marqueur'";
-                
-            } catch (error) {
-                info.textContent = "Erreur: " + error.message;
-                console.error(error);
-            }
-        });
-
-        // Placer le marqueur
-        arButton.addEventListener('click', () => {
-            if (!markerPlaced) {
-                virtualMarker.setAttribute('visible', 'true');
-                markerPlaced = true;
-                arButton.textContent = "Retirer le marqueur";
-                info.textContent = "Marqueur placé: Arroser cette plante";
-            } else {
-                virtualMarker.setAttribute('visible', 'false');
-                markerPlaced = false;
-                arButton.textContent = "Placer le marqueur";
-                info.textContent = "Déplacez votre appareil. Appuyez sur 'Placer le marqueur'";
-            }
-        });
-
-        // Contrôle du zoom
-        zoomInButton.addEventListener('click', () => {
-            currentZoom = Math.min(1, currentZoom + 0.1);  // Zoom max 1x (normal)
-            updateCameraZoom();
-        });
-
-        zoomOutButton.addEventListener('click', () => {
-            currentZoom = Math.max(0.1, currentZoom - 0.1);  // Zoom min 0.1x (très large)
-            updateCameraZoom();
-        });
-
-        function updateCameraZoom() {
-            // Appliquer le zoom à la caméra
-            arCamera.setAttribute('camera', 'zoom', currentZoom);
-            zoomLevelDisplay.textContent = `Zoom: ${currentZoom.toFixed(1)}x`;
+        // Initialisation
+        async function init() {
+            // 1. Créer la scène Three.js
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+            const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             
-            // Ajuster la taille du texte pour compenser le zoom
-            const text = virtualMarker.querySelector('a-text');
-            if (text) {
-                text.setAttribute('width', 4.5 / currentZoom);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.xr.enabled = true;
+            document.body.appendChild(renderer.domElement);
+
+            // 2. Ajouter un éclairage
+            const light = new THREE.AmbientLight(0xffffff, 1);
+            scene.add(light);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            directionalLight.position.set(0, 1, 0);
+            scene.add(directionalLight);
+
+            // 3. Créer un réticule pour le placement
+            reticle = new THREE.Mesh(
+                new THREE.RingGeometry(0.1, 0.2, 32).rotateX(-Math.PI / 2),
+                new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+            );
+            reticle.visible = false;
+            scene.add(reticle);
+
+            // 4. Charger le modèle GLB
+            const loader = new THREE.GLTFLoader();
+            try {
+                const gltf = await loader.loadAsync('./ianis.glb');
+                model = gltf.scene;
+                model.scale.set(0.5, 0.5, 0.5);
+                model.visible = false;
+                scene.add(model);
+                document.getElementById('loading').style.display = 'none';
+            } catch (error) {
+                console.error("Erreur de chargement:", error);
+                document.getElementById('loading').textContent = "Erreur de chargement du modèle";
             }
+
+            // 5. Configurer WebXR
+            const arButton = ARButton.createButton(renderer, { 
+                requiredFeatures: ['hit-test'],
+                optionalFeatures: ['dom-overlay'],
+                domOverlay: { root: document.body }
+            });
+            document.body.appendChild(arButton);
+
+            // 6. Gestion des interactions
+            const btn = document.getElementById('arButton');
+            btn.addEventListener('click', () => {
+                if (!anchorSet && model) {
+                    model.position.copy(reticle.position);
+                    model.visible = true;
+                    anchorSet = true;
+                    reticle.visible = false;
+                    btn.textContent = "Réinitialiser";
+                } else {
+                    if (model) model.visible = false;
+                    anchorSet = false;
+                    btn.textContent = "Placer l'objet";
+                }
+            });
+
+            // 7. Animation et détection des surfaces
+            renderer.setAnimationLoop((timestamp, frame) => {
+                if (frame) {
+                    const referenceSpace = renderer.xr.getReferenceSpace();
+                    const session = renderer.xr.getSession();
+                    
+                    if (session && !anchorSet) {
+                        session.requestHitTestSource({ space: referenceSpace }).then((hitTestSource) => {
+                            const hitTestResults = frame.getHitTestResults(hitTestSource);
+                            if (hitTestResults.length > 0) {
+                                const hit = hitTestResults[0];
+                                reticle.visible = true;
+                                reticle.position.setFromMatrixPosition(hit.getPose(referenceSpace).transform.matrix);
+                            } else {
+                                reticle.visible = false;
+                            }
+                        });
+                    }
+                }
+                renderer.render(scene, camera);
+            });
+
+            // 8. Redimensionnement
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
         }
+
+        // Démarrer l'application
+        init().catch((err) => {
+            console.error("Erreur d'initialisation:", err);
+            document.getElementById('loading').textContent = "Erreur : " + err.message;
+        });
     </script>
 </body>
 </html>
