@@ -58,6 +58,19 @@
     #ui button:hover {
       background-color: #45a049;
     }
+
+    /* Style pour le bouton AR */
+    #ar-button {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      z-index: 20;
+      background: rgba(0, 0, 0, 0.5);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -74,6 +87,9 @@
     <button id="reset-button">Réinitialiser</button>
     <button id="fix-button">Fixer l'Image</button>
   </div>
+
+  <!-- Bouton Start AR -->
+  <button id="ar-button">Start AR</button>
 
   <script type="module">
     import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js';
@@ -115,8 +131,12 @@
       renderer.xr.enabled = true;
       container.appendChild(renderer.domElement);
 
-      // Créer le bouton AR (si WebXR est pris en charge)
-      document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] }));
+      // Créer le bouton AR
+      const arButton = document.getElementById('ar-button');
+      arButton.addEventListener('click', () => {
+        document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] }));
+        arButton.style.display = 'none'; // Masquer le bouton une fois que l'AR est lancé
+      });
 
       // Créer le réticule (marqueur)
       const ringGeo = new THREE.RingGeometry(0.05, 0.06, 32).rotateX(-Math.PI / 2);
@@ -237,4 +257,3 @@
   </script>
 </body>
 </html>
-
