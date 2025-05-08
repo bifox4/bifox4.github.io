@@ -32,64 +32,89 @@
   import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.158.0/examples/jsm/loaders/GLTFLoader.js';
   import { ARButton } from 'https://cdn.skypack.dev/three@0.158.0/examples/jsm/webxr/ARButton.js';
 
-  let camera, scene, renderer;
-  let controller;
+  let camera, scene, renderer, controller, reticle, hitTestSource = null, hitTestSourceRequested = false;
   let model = null;
   let placed = false;
 
-  init();
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera();
 
-  function init() {
-    scene = new THREE.Scene();
-    camera = new THREE.PerspectiveCamera();
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.xr.enabled = true;
+  document.body.appendChild(renderer.domElement);
+  document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] }));
 
-    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.xr.enabled = true;
-    document.body.appendChild(renderer.domElement);
-    document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] }));
+  const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
+  scene.add(light);
 
-    const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-    scene.add(light);
+  const loader = new GLTFLoader();
+  loader.load('ianis.glb', function(gltf) {
+    model = gltf.scene;
+    model.scale.set(0.5, 0.5, 0.5);
+  });
 
-    const loader = new GLTFLoader();
-    loader.load('ianis.glb', function(gltf) {
-      model = gltf.scene;
-      model.scale.set(0.5, 0.5, 0.5);
-    });
+  reticle = new THREE.Mesh(
+    new THREE.RingGeometry(0.1, 0.15, 32).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+  );
+  reticle.matrixAutoUpdate = false;
+  reticle.visible = false;
+  scene.add(reticle);
 
-    controller = renderer.xr.getController(0);
-    controller.addEventListener('select', onSelect);
-    scene.add(controller);
-
-    renderer.setAnimationLoop(() => {
-      renderer.render(scene, camera);
-    });
-
-    document.getElementById("fix-button").addEventListener("click", () => {
+  controller = renderer.xr.getController(0);
+  controller.addEventListener('select', () => {
+    if (reticle.visible && model && !placed) {
+      model.position.setFromMatrixPosition(reticle.matrix);
+      scene.add(model);
       placed = true;
-    });
-  }
+    }
+  });
+  scene.add(controller);
 
-  function onSelect() {
-    if (model && !placed) {
-      const refSpace = renderer.xr.getReferenceSpace();
-      const viewerPose = renderer.xr.getSession().inputSources[0].targetRaySpace;
-      renderer.xr.getSession().requestReferenceSpace('viewer').then((refSpace) => {
-        renderer.xr.getSession().requestHitTestSource({ space: viewerPose }).then((source) => {
-          renderer.xr.getSession().addEventListener('select', () => {
-            renderer.xr.getFrame().getHitTestResults(source).forEach((hit) => {
-              const pose = hit.getPose(refSpace);
-              model.position.set(pose.transform.position.x, pose.transform.position.y, pose.transform.position.z);
-              scene.add(model);
-              placed = true;
-            });
+  document.getElementById("fix-button").addEventListener("click", () => {
+    placed = true;
+    alert("Modèle fixé.");
+  });
+
+  renderer.setAnimationLoop(function(timestamp, frame) {
+    if (frame) {
+      const referenceSpace = renderer.xr.getReferenceSpace();
+      const session = renderer.xr.getSession();
+
+      if (!hitTestSourceRequested) {
+        session.requestReferenceSpace('viewer').then((referenceSpace) => {
+          session.requestHitTestSource({ space: referenceSpace }).then((source) => {
+            hitTestSource = source;
           });
         });
-      });
+
+        session.addEventListener('end', () => {
+          hitTestSourceRequested = false;
+          hitTestSource = null;
+        });
+
+        hitTestSourceRequested = true;
+      }
+
+      if (hitTestSource) {
+        const hitTestResults = frame.getHitTestResults(hitTestSource);
+        if (hitTestResults.length) {
+          const hit = hitTestResults[0];
+          const pose = hit.getPose(referenceSpace);
+
+          reticle.visible = true;
+          reticle.matrix.fromArray(pose.transform.matrix);
+        } else {
+          reticle.visible = false;
+        }
+      }
     }
-  }
+
+    renderer.render(scene, camera);
+  });
 </script>
 
 </body>
 </html>
+
