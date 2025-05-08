@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RA : Image Fixe et Marqueur Contrôlé</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>RA : Image Fixe avec Hit-Testing</title>
   <!-- A-Frame et AR.js -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/jeromeetienne/ar.js/aframe/build/aframe-ar.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/aframe-ar-hit-test-component@1.0.0/dist/aframe-ar-hit-test-component.min.js"></script>
   <style>
     body, html {
       margin: 0;
@@ -62,26 +62,24 @@
   <a-scene
     vr-mode-ui="enabled: false"
     embedded
-    arjs="sourceType: webcam; debugUIEnabled: false;">
+    webxr="optionalFeatures: hit-test;"
+    ar-hit-test="target: #projected-image;">
     
-    <!-- Marqueur temporaire visible pendant le placement -->
-    <a-entity
-      id="temporary-marker"
-      geometry="primitive: sphere; radius: 0.05"
-      material="color: red; opacity: 0.6"
-      visible="true"
-      position="0 0 -1">
-    </a-entity>
-
     <!-- Image projetée -->
     <a-image 
       id="projected-image" 
       src=""
       scale="1 1 1" 
       rotation="0 0 0" 
-      visible="false" 
-      position="0 0 -1">
+      visible="false">
     </a-image>
+
+    <!-- Réticule pour indiquer la surface détectée -->
+    <a-entity id="reticle" geometry="primitive: ring; radiusInner: 0.05; radiusOuter: 0.06"
+              material="color: green; shader: flat"
+              position="0 0 -1"
+              visible="false">
+    </a-entity>
 
     <!-- Lumières -->
     <a-light type="ambient" intensity="0.5"></a-light>
@@ -96,11 +94,10 @@
     const placeMarkerButton = document.getElementById('place-marker');
     const resetMarkerButton = document.getElementById('reset-marker');
     const projectedImage = document.getElementById('projected-image');
-    const temporaryMarker = document.getElementById('temporary-marker');
-    const scene = document.querySelector('a-scene');
+    const reticle = document.getElementById('reticle');
+    const sceneEl = document.querySelector('a-scene');
 
-    let isMarkerFixed = false; // État de fixation du marqueur
-    let markerPosition = null; // Position temporaire choisie
+    let isMarkerFixed = false;
 
     // Gestion de l'importation d'images
     imageInput.addEventListener('change', (event) => {
@@ -127,40 +124,35 @@
       projectedImage.setAttribute('rotation', `0 ${rotationValue} 0`);
     });
 
-    // Clic pour déplacer temporairement le marqueur
-    scene.addEventListener('click', (event) => {
+    // Événement de détection de surface
+    sceneEl.addEventListener('ar-hit-test-select', (event) => {
       if (!isMarkerFixed) {
-        const intersectedPoint = event.detail.intersection?.point;
-        if (intersectedPoint) {
-          markerPosition = intersectedPoint; // Stocker la position temporaire
-          temporaryMarker.setAttribute('position', markerPosition);
-          alert('Position temporaire définie. Cliquez sur "Fixer le marqueur" pour la valider.');
-        }
+        const position = event.detail.position;
+        const rotation = event.detail.rotation;
+        projectedImage.setAttribute('position', position);
+        projectedImage.setAttribute('rotation', rotation);
+        projectedImage.setAttribute('visible', 'true');
+        reticle.setAttribute('visible', 'false');
       }
     });
 
     // Bouton pour fixer définitivement le marqueur
     placeMarkerButton.addEventListener('click', () => {
-      if (markerPosition && !isMarkerFixed) {
-        projectedImage.setAttribute('position', markerPosition);
-        temporaryMarker.setAttribute('visible', 'false'); // Masquer le marqueur temporaire
+      if (!isMarkerFixed && projectedImage.getAttribute('visible') === 'true') {
         isMarkerFixed = true;
         alert('Marqueur fixé à cette position.');
-      } else if (!markerPosition) {
-        alert('Veuillez d\'abord sélectionner une position temporaire en cliquant sur la scène.');
+      } else if (!isMarkerFixed) {
+        alert('Veuillez d\'abord sélectionner une position en tapant sur une surface détectée.');
       }
     });
 
     // Réinitialisation du marqueur
     resetMarkerButton.addEventListener('click', () => {
       isMarkerFixed = false;
-      markerPosition = null;
       projectedImage.setAttribute('visible', 'false');
-      temporaryMarker.setAttribute('visible', 'true'); // Réaffiche le marqueur temporaire
-      temporaryMarker.setAttribute('position', '0 0 -1'); // Réinitialise la position du marqueur temporaire
-      alert('Marqueur réinitialisé. Cliquez pour choisir une nouvelle position.');
+      reticle.setAttribute('visible', 'true');
+      alert('Marqueur réinitialisé. Veuillez sélectionner une nouvelle position.');
     });
   </script>
 </body>
 </html>
-
