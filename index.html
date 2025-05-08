@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
-  <title>RA - Placement image avec marqueur visible</title>
+  <title>Projection RA - Image fixe dans l’espace</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.min.js"></script>
@@ -10,7 +10,6 @@
     body {
       margin: 0;
       overflow: hidden;
-      font-family: sans-serif;
     }
     #ui {
       position: fixed;
@@ -21,6 +20,7 @@
       padding: 10px;
       border-radius: 8px;
       width: 250px;
+      font-family: sans-serif;
     }
     #ui input, #ui button {
       margin-top: 5px;
@@ -42,30 +42,44 @@
   <a-scene
     vr-mode-ui="enabled: false"
     embedded
-    arjs="sourceType: webcam; debugUIEnabled: false;"
+    arjs="sourceType: webcam; trackingMethod: best; debugUIEnabled: false;"
+    renderer="logarithmicDepthBuffer: true;"
   >
     <a-entity camera id="camera"></a-entity>
 
-    <!-- Réticule -->
-    <a-ring
-      id="reticle"
-      color="green"
-      radius-inner="0.03"
-      radius-outer="0.05"
-      position="0 0 -1"
-      rotation="-90 0 0"
-      material="shader: flat"
-      visible="true"
-    ></a-ring>
+    <!-- Marqueur virtuel (réticule) -->
+    <a-entity id="reticle-wrapper" position="0 0 -1">
+      <a-ring
+        id="reticle"
+        color="green"
+        radius-inner="0.03"
+        radius-outer="0.05"
+        rotation="-90 0 0"
+        material="shader: flat"
+      ></a-ring>
 
-    <!-- Image projetée -->
-    <a-image
-      id="placed-image"
-      src=""
-      visible="false"
-      rotation="0 0 0"
-      scale="1 1 1"
-    ></a-image>
+      <!-- Image projetée (visible avant fixation) -->
+      <a-image
+        id="floating-image"
+        src=""
+        visible="false"
+        position="0 0 0"
+        rotation="0 0 0"
+        scale="1 1 1"
+      ></a-image>
+    </a-entity>
+
+    <!-- Image fixée dans la scène -->
+    <a-entity id="fixed-container" visible="false">
+      <a-image
+        id="fixed-image"
+        src=""
+        position="0 0 0"
+        rotation="0 0 0"
+        scale="1 1 1"
+        visible="true"
+      ></a-image>
+    </a-entity>
   </a-scene>
 
   <script>
@@ -75,71 +89,79 @@
     const fixButton = document.getElementById("fix-button");
     const resetButton = document.getElementById("reset-button");
 
-    const placedImage = document.getElementById("placed-image");
-    const reticle = document.getElementById("reticle");
-    const camera = document.getElementById("camera");
+    const floatingImage = document.getElementById("floating-image");
+    const fixedImage = document.getElementById("fixed-image");
+    const fixedContainer = document.getElementById("fixed-container");
+    const reticleWrapper = document.getElementById("reticle-wrapper");
 
-    let isPlaced = false;
+    let isFixed = false;
+    let currentScale = 1;
+    let currentRotation = 0;
 
-    // Charger l'image
-    imageInput.addEventListener("change", (event) => {
-      const file = event.target.files[0];
+    // Charger une image
+    imageInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
       if (!file) return;
+
       const reader = new FileReader();
-      reader.onload = function (e) {
-        placedImage.setAttribute("src", e.target.result);
-        placedImage.setAttribute("visible", "true");
+      reader.onload = (evt) => {
+        floatingImage.setAttribute("src", evt.target.result);
+        fixedImage.setAttribute("src", evt.target.result);
+        floatingImage.setAttribute("visible", "true");
       };
       reader.readAsDataURL(file);
     });
 
-    // Ajustement de l'échelle
+    // Modifier la taille
     scaleSlider.addEventListener("input", () => {
-      const s = scaleSlider.value;
-      placedImage.setAttribute("scale", `${s} ${s} ${s}`);
+      currentScale = parseFloat(scaleSlider.value);
+      floatingImage.setAttribute("scale", `${currentScale} ${currentScale} ${currentScale}`);
+      fixedImage.setAttribute("scale", `${currentScale} ${currentScale} ${currentScale}`);
     });
 
-    // Ajustement de la rotation
+    // Modifier la rotation
     rotationSlider.addEventListener("input", () => {
-      const r = rotationSlider.value;
-      placedImage.setAttribute("rotation", `0 ${r} 0`);
+      currentRotation = parseFloat(rotationSlider.value);
+      floatingImage.setAttribute("rotation", `0 ${currentRotation} 0`);
+      fixedImage.setAttribute("rotation", `0 ${currentRotation} 0`);
     });
 
-    // Mise à jour en temps réel avant fixation
-    AFRAME.registerComponent('follow-reticle', {
-      tick: function () {
-        if (!isPlaced && placedImage.getAttribute("visible")) {
-          const retPos = reticle.object3D.position;
-          const camPos = camera.object3D.position;
-          placedImage.object3D.position.copy(retPos);
-          placedImage.object3D.lookAt(camPos);
-        }
-      }
-    });
-
-    document.querySelector("a-scene").addEventListener("loaded", () => {
-      placedImage.setAttribute("follow-reticle", "");
-    });
-
-    // Fixation de l'image
+    // Fixer l'image dans la scène
     fixButton.addEventListener("click", () => {
-      if (!placedImage.getAttribute("visible")) {
-        alert("Importe une image et regarde vers l'endroit souhaité.");
+      if (!floatingImage.getAttribute("visible")) {
+        alert("Importe une image avant de la fixer.");
         return;
       }
-      isPlaced = true;
-      reticle.setAttribute("visible", "false");
-      placedImage.removeAttribute("follow-reticle");
-      alert("Image fixée !");
+
+      const worldPos = new THREE.Vector3();
+      const worldRot = new THREE.Euler();
+
+      // Obtenir la position globale du réticule
+      reticleWrapper.object3D.getWorldPosition(worldPos);
+      reticleWrapper.object3D.getWorldRotation(worldRot);
+
+      // Appliquer à l'image fixée
+      fixedContainer.setAttribute("visible", "true");
+      fixedContainer.setAttribute("position", `${worldPos.x} ${worldPos.y} ${worldPos.z}`);
+      fixedImage.setAttribute("rotation", `0 ${currentRotation} 0`);
+      fixedImage.setAttribute("scale", `${currentScale} ${currentScale} ${currentScale}`);
+
+      // Cacher l'image flottante
+      floatingImage.setAttribute("visible", "false");
+      reticleWrapper.setAttribute("visible", "false");
+      isFixed = true;
     });
 
-    // Réinitialisation
+    // Réinitialiser
     resetButton.addEventListener("click", () => {
-      isPlaced = false;
-      placedImage.setAttribute("visible", "false");
-      reticle.setAttribute("visible", "true");
-      placedImage.setAttribute("follow-reticle", "");
+      isFixed = false;
+      fixedContainer.setAttribute("visible", "false");
+      floatingImage.setAttribute("visible", "false");
+      reticleWrapper.setAttribute("visible", "true");
+      scaleSlider.value = 1;
+      rotationSlider.value = 0;
     });
   </script>
 </body>
 </html>
+
