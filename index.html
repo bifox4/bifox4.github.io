@@ -89,7 +89,7 @@
     let currentRotation = 0;
     let isImageFixed = false;
 
-    // Démarrage du flux caméra HTML (getUserMedia)
+    // Démarrer le flux caméra dès le début
     const video = document.getElementById('camera-feed');
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
       .then(stream => {
@@ -114,9 +114,10 @@
       renderer.xr.enabled = true;
       container.appendChild(renderer.domElement);
 
+      // Crée le bouton AR (si WebXR est pris en charge)
       document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] }));
 
-      // Reticle
+      // Reticle pour placer l'image
       const ringGeo = new THREE.RingGeometry(0.05, 0.06, 32).rotateX(-Math.PI / 2);
       const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
       reticle = new THREE.Mesh(ringGeo, ringMat);
@@ -128,6 +129,7 @@
       controller.addEventListener('select', onSelect);
       scene.add(controller);
 
+      // Gestion de l'image à charger
       document.getElementById('image-input').addEventListener('change', handleImageUpload);
       document.getElementById('scale-slider').addEventListener('input', (e) => {
         currentScale = parseFloat(e.target.value);
@@ -234,4 +236,3 @@
   </script>
 </body>
 </html>
-
