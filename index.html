@@ -2,36 +2,21 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <title>Texte AR Fixe</title>
+    <title>Image AR - Arroser cette plante</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <style>
       html, body {
         margin: 0;
         padding: 0;
         overflow: hidden;
-        font-family: sans-serif;
         background: black;
       }
       canvas {
         display: block;
       }
-      #message {
-        position: fixed;
-        bottom: 10px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: rgba(0, 0, 0, 0.8);
-        color: white;
-        padding: 8px 16px;
-        border-radius: 8px;
-        z-index: 11;
-        display: none;
-      }
     </style>
   </head>
   <body>
-    <div id="message">Texte placé !</div>
-
     <script type="module">
       import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js';
       import { ARButton } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/webxr/ARButton.js';
@@ -40,9 +25,7 @@
       let controller, reticle;
       let hitTestSource = null;
       let hitTestSourceRequested = false;
-      let textPlaced = false;
-
-      const msg = document.getElementById('message');
+      let imagePlaced = false;
 
       init();
 
@@ -55,12 +38,12 @@
         renderer.xr.enabled = true;
         document.body.appendChild(renderer.domElement);
 
-        // Bouton AR créé par WebXR
+        // WebXR ARButton
         document.body.appendChild(ARButton.createButton(renderer, {
           requiredFeatures: ['hit-test']
         }));
 
-        // Création du réticule vert
+        // Réticule vert
         const ringGeo = new THREE.RingGeometry(0.05, 0.06, 32).rotateX(-Math.PI / 2);
         const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
         reticle = new THREE.Mesh(ringGeo, ringMat);
@@ -68,11 +51,11 @@
         reticle.visible = false;
         scene.add(reticle);
 
-        // Contrôleur WebXR (sélection par clic)
+        // Contrôleur XR
         controller = renderer.xr.getController(0);
         controller.addEventListener('select', () => {
-          if (reticle.visible && !textPlaced) {
-            placeTextAtReticle();
+          if (reticle.visible && !imagePlaced) {
+            placeImageAtReticle();
           }
         });
         scene.add(controller);
@@ -80,34 +63,32 @@
         renderer.setAnimationLoop(render);
       }
 
-      // Fonction pour placer le texte au niveau du réticule
-      function placeTextAtReticle() {
-        const loader = new THREE.FontLoader();
-        loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', (font) => {
-          const textGeo = new THREE.TextGeometry('arroser cette plante', {
-            font: font,
-            size: 0.30, // Taille du texte équivalente à un pied (30.48cm = 0.30m)
-            height: 0.005, // Épaisseur du texte
-          });
+      function placeImageAtReticle() {
+        const textureLoader = new THREE.TextureLoader();
+        textureLoader.load(
+          // 👉 Ton image hébergée
+          'https://i.postimg.cc/ht3xvhJ6/a0893b32-98cd-4243-898e-97450f7ffdea.png',
+          (texture) => {
+            const width = 0.3;  // 30 cm
+            const height = 0.1; // 10 cm
 
-          const textMat = new THREE.MeshBasicMaterial({ color: 0x000000 }); // Texte noir
-          const textMesh = new THREE.Mesh(textGeo, textMat);
+            const geometry = new THREE.PlaneGeometry(width, height);
+            const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+            const imagePlane = new THREE.Mesh(geometry, material);
 
-          // Récupération de la position du réticule et placement du texte
-          const matrix = new THREE.Matrix4().copy(reticle.matrix);
-          textMesh.applyMatrix4(matrix);
+            imagePlane.matrixAutoUpdate = false;
+            imagePlane.matrix.copy(reticle.matrix); // Place image à l'endroit du reticule
+            scene.add(imagePlane);
 
-          scene.add(textMesh);
-          textPlaced = true;
-
-          // Affichage du message "Texte placé !"
-          msg.textContent = 'Texte placé !';
-          msg.style.display = 'block';
-          setTimeout(() => msg.style.display = 'none', 2000);
-        });
+            imagePlaced = true;
+          },
+          undefined,
+          (err) => {
+            console.error("Erreur chargement image :", err);
+          }
+        );
       }
 
-      // Fonction de rendu
       function render(_, frame) {
         if (frame) {
           const referenceSpace = renderer.xr.getReferenceSpace();
@@ -128,7 +109,6 @@
             hitTestSourceRequested = true;
           }
 
-          // Effectuer un test de détection de surface avec le hit-test
           if (hitTestSource) {
             const hitTestResults = frame.getHitTestResults(hitTestSource);
             if (hitTestResults.length > 0) {
@@ -147,4 +127,3 @@
     </script>
   </body>
 </html>
-
