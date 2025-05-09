@@ -1,236 +1,252 @@
 <!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>WebXR AR Texte</title>
-    <style>
-      body {
-        margin: 0;
-        overflow: hidden;
-        background: transparent;
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>App AR complète</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: sans-serif;
+    }
+
+    #camera-feed {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+      z-index: 0;
+    }
+
+    canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 1;
+    }
+
+    #ui {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 10px;
+      border-radius: 8px;
+      z-index: 2;
+      width: 250px;
+    }
+
+    #ui input, #ui button {
+      width: 100%;
+      margin: 5px 0;
+    }
+
+    #ar-button {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      z-index: 3;
+      padding: 12px 20px;
+      font-size: 16px;
+      border: none;
+      background-color: #28a745;
+      color: white;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    #message {
+      position: fixed;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-size: 14px;
+      display: none;
+      z-index: 5;
+    }
+  </style>
+</head>
+<body>
+  <video id="camera-feed" autoplay muted playsinline></video>
+
+  <div id="ui">
+    <input type="file" id="image-input" accept="image/*" />
+    <label for="scale-slider">Taille</label>
+    <input type="range" id="scale-slider" min="0.1" max="3" step="0.1" value="1" />
+    <label for="rotation-slider">Rotation</label>
+    <input type="range" id="rotation-slider" min="0" max="360" value="0" />
+    <button id="fix-button">Fixer l'image</button>
+  </div>
+
+  <button id="ar-button">Start AR</button>
+  <div id="message">Image fixée !</div>
+
+  <script type="module">
+    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js';
+    import { ARButton } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/webxr/ARButton.js';
+
+    let scene, camera, renderer;
+    let controller, reticle;
+    let hitTestSource = null;
+    let hitTestSourceRequested = false;
+    let imageMesh = null;
+    let imageTexture = null;
+    let isImageFixed = false;
+
+    const video = document.getElementById('camera-feed');
+    const startButton = document.getElementById('ar-button');
+    const message = document.getElementById('message');
+
+    startButton.addEventListener('click', () => {
+      startCamera().then(() => {
+        initAR();
+        startButton.style.display = 'none';
+      });
+    });
+
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        video.srcObject = stream;
+        video.style.display = 'block';
+      } catch (err) {
+        alert('Accès caméra refusé : ' + err.message);
       }
+    }
 
-      canvas {
-        position: fixed;
-        top: 0;
-        left: 0;
-        z-index: 0;
-      }
+    function initAR() {
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+      renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.xr.enabled = true;
+      document.body.appendChild(renderer.domElement);
 
-      #fixButton {
-        position: absolute;
-        top: 50px;
-        left: 50%;
-        transform: translateX(-50%);
-        padding: 12px 24px;
-        font-size: 16px;
-        z-index: 1;
-        background-color: rgba(0, 0, 0, 0.5);
-        color: white;
-        border-radius: 8px;
-        border: none;
-      }
+      document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] }));
 
-      #message {
-        position: absolute;
-        top: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        color: white;
-        font-size: 18px;
-        z-index: 2;
-      }
-    </style>
-  </head>
-  <body>
-    <button id="fixButton">Fixer le texte</button>
-    <div id="message">Autorisation de la caméra requise...</div>
+      const geometry = new THREE.RingGeometry(0.1, 0.12, 32).rotateX(-Math.PI / 2);
+      const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+      reticle = new THREE.Mesh(geometry, material);
+      reticle.matrixAutoUpdate = false;
+      reticle.visible = false;
+      scene.add(reticle);
 
-    <script type="module">
-      import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
-      import { ARButton } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/webxr/ARButton.js';
+      controller = renderer.xr.getController(0);
+      controller.addEventListener('select', () => {
+        if (reticle.visible && imageTexture && !isImageFixed) {
+          placeImage();
+        }
+      });
+      scene.add(controller);
 
-      let camera, scene, renderer;
-      let controller;
-      let reticle;
-      let placingEnabled = false;
-      let cameraPermissionGranted = false;
-      let videoTexture, videoMesh;
+      document.getElementById('image-input').addEventListener('change', handleImage);
+      document.getElementById('scale-slider').addEventListener('input', updateScale);
+      document.getElementById('rotation-slider').addEventListener('input', updateRotation);
+      document.getElementById('fix-button').addEventListener('click', () => {
+        if (imageMesh) {
+          isImageFixed = true;
+          showMessage("Image fixée !");
+        }
+      });
 
-      init();
-      animate();
-
-      async function init() {
-        scene = new THREE.Scene();
-
-        camera = new THREE.PerspectiveCamera(
-          70,
-          window.innerWidth / window.innerHeight,
-          0.01,
-          20
-        );
-
-        renderer = new THREE.WebGLRenderer({
-          antialias: true,
-          alpha: true, // Permet d'afficher la caméra avec transparence
-        });
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.xr.enabled = true;
-        renderer.xr.setReferenceSpaceType('local');
-        document.body.appendChild(renderer.domElement);
+      });
 
-        // Message pour indiquer qu'on attend l'autorisation de la caméra
-        const messageElement = document.getElementById('message');
+      renderer.setAnimationLoop(render);
+    }
 
-        // Demander la permission de la caméra via WebXR
-        if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
-          navigator.mediaDevices.enumerateDevices().then((devices) => {
-            const cameraDevice = devices.find(device => device.kind === 'videoinput');
-            if (cameraDevice) {
-              messageElement.textContent = 'Autorisation de la caméra requise...';
-            } else {
-              messageElement.textContent = 'Aucune caméra disponible';
-            }
+    function handleImage(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const img = new Image();
+        img.onload = function () {
+          imageTexture = new THREE.Texture(img);
+          imageTexture.needsUpdate = true;
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function placeImage() {
+      const plane = new THREE.PlaneGeometry(0.5, 0.5);
+      const material = new THREE.MeshBasicMaterial({ map: imageTexture, transparent: true, side: THREE.DoubleSide });
+      imageMesh = new THREE.Mesh(plane, material);
+      imageMesh.matrixAutoUpdate = false;
+      imageMesh.applyMatrix4(reticle.matrix);
+      imageMesh.matrixAutoUpdate = true;
+      scene.add(imageMesh);
+    }
+
+    function updateScale(e) {
+      const scale = parseFloat(e.target.value);
+      if (imageMesh && !isImageFixed) {
+        imageMesh.scale.set(scale, scale, scale);
+      }
+    }
+
+    function updateRotation(e) {
+      const angle = parseFloat(e.target.value);
+      if (imageMesh && !isImageFixed) {
+        imageMesh.rotation.y = THREE.MathUtils.degToRad(angle);
+      }
+    }
+
+    function showMessage(text) {
+      message.textContent = text;
+      message.style.display = 'block';
+      setTimeout(() => {
+        message.style.display = 'none';
+      }, 2000);
+    }
+
+    function render(_, frame) {
+      if (frame) {
+        const referenceSpace = renderer.xr.getReferenceSpace();
+        const session = renderer.xr.getSession();
+
+        if (!hitTestSourceRequested) {
+          session.requestReferenceSpace('viewer').then((viewerSpace) => {
+            session.requestHitTestSource({ space: viewerSpace }).then((source) => {
+              hitTestSource = source;
+            });
           });
+          session.addEventListener('end', () => {
+            hitTestSourceRequested = false;
+            hitTestSource = null;
+          });
+          hitTestSourceRequested = true;
         }
 
-        // Ajout du bouton AR
-        document.body.appendChild(
-          ARButton.createButton(renderer, {
-            requiredFeatures: ['hit-test', 'anchors'],
-            onSessionStart: () => {
-              messageElement.style.display = 'none'; // Cacher le message quand la session AR commence
-              cameraPermissionGranted = true;
-              startCamera();
-            }
-          })
-        );
-
-        const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-        scene.add(light);
-
-        // Text geometry (initialement invisible)
-        const loader = new THREE.FontLoader();
-        loader.load(
-          'https://threejs.org/examples/fonts/helvetiker_regular.typeface.json',
-          (font) => {
-            const geometry = new THREE.TextGeometry('Texte RA', {
-              font: font,
-              size: 0.1,
-              height: 0.02,
-            });
-            const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-            const textMesh = new THREE.Mesh(geometry, material);
-            textMesh.name = 'anchoredText';
-            textMesh.visible = false;
-            scene.add(textMesh);
+        if (hitTestSource) {
+          const hitTestResults = frame.getHitTestResults(hitTestSource);
+          if (hitTestResults.length > 0) {
+            const hit = hitTestResults[0];
+            const pose = hit.getPose(referenceSpace);
+            reticle.visible = true;
+            reticle.matrix.fromArray(pose.transform.matrix);
+          } else {
+            reticle.visible = false;
           }
-        );
-
-        // Création du réticule pour placer le texte
-        const ringGeometry = new THREE.RingGeometry(0.05, 0.06, 32).rotateX(-Math.PI / 2);
-        const ringMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-        reticle = new THREE.Mesh(ringGeometry, ringMaterial);
-        reticle.visible = false;
-        scene.add(reticle);
-
-        // Contrôleur WebXR
-        controller = renderer.xr.getController(0);
-        scene.add(controller);
-
-        document.getElementById('fixButton').addEventListener('click', () => {
-          if (!cameraPermissionGranted) {
-            alert('Veuillez autoriser l\'accès à la caméra pour activer AR');
-            return;
-          }
-          placingEnabled = true;
-        });
-
-        // Gestion du hit-test
-        renderer.xr.addEventListener('sessionstart', async () => {
-          const session = renderer.xr.getSession();
-
-          const viewerSpace = await session.requestReferenceSpace('viewer');
-          const hitTestSource = await session.requestHitTestSource({
-            space: viewerSpace,
-          });
-
-          renderer.setAnimationLoop((timestamp, frame) => {
-            if (!frame) return;
-
-            const referenceSpace = renderer.xr.getReferenceSpace();
-            const hitTestResults = frame.getHitTestResults(hitTestSource);
-
-            if (hitTestResults.length > 0) {
-              const hit = hitTestResults[0];
-              const pose = hit.getPose(referenceSpace);
-
-              // Mise à jour de la position du réticule
-              reticle.visible = true;
-              reticle.position.set(
-                pose.transform.position.x,
-                pose.transform.position.y,
-                pose.transform.position.z
-              );
-              reticle.updateMatrixWorld(true);
-
-              if (placingEnabled) {
-                const anchorPose = pose.transform;
-                frame.createAnchor(anchorPose, referenceSpace).then((anchor) => {
-                  const text = scene.getObjectByName('anchoredText');
-                  if (text) {
-                    text.visible = true;
-                    const anchorGroup = new THREE.Group();
-                    anchorGroup.position.copy(reticle.position);
-                    anchorGroup.add(text);
-                    scene.add(anchorGroup);
-
-                    const anchorObject = renderer.xr
-                      .getSession()
-                      .addAnchor(anchor);
-                    anchorObject.context = anchorGroup;
-                  }
-                });
-
-                placingEnabled = false;
-              }
-            }
-          });
-        });
+        }
       }
 
-      // Fonction pour initialiser la caméra vidéo et l'afficher
-      async function startCamera() {
-        const video = document.createElement('video');
-        video.width = window.innerWidth;
-        video.height = window.innerHeight;
-
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment' },
-        });
-
-        video.srcObject = stream;
-        video.play();
-
-        // Créer une texture vidéo à appliquer à un matériau
-        videoTexture = new THREE.VideoTexture(video);
-        const videoMaterial = new THREE.MeshBasicMaterial({
-          map: videoTexture,
-          side: THREE.DoubleSide,
-        });
-
-        const geometry = new THREE.PlaneGeometry(5, 3);
-        videoMesh = new THREE.Mesh(geometry, videoMaterial);
-        videoMesh.position.z = -2; // Placer la vidéo derrière le texte
-        scene.add(videoMesh);
-      }
-
-      function animate() {
-        renderer.setAnimationLoop(() => {
-          renderer.render(scene, camera);
-        });
-      }
-    </script>
-  </body>
+      renderer.render(scene, camera);
+    }
+  </script>
+</body>
 </html>
