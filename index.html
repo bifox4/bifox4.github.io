@@ -55,10 +55,12 @@
         renderer.xr.enabled = true;
         document.body.appendChild(renderer.domElement);
 
+        // Bouton AR créé par WebXR
         document.body.appendChild(ARButton.createButton(renderer, {
           requiredFeatures: ['hit-test']
         }));
 
+        // Création du réticule vert
         const ringGeo = new THREE.RingGeometry(0.05, 0.06, 32).rotateX(-Math.PI / 2);
         const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
         reticle = new THREE.Mesh(ringGeo, ringMat);
@@ -66,6 +68,7 @@
         reticle.visible = false;
         scene.add(reticle);
 
+        // Contrôleur WebXR (sélection par clic)
         controller = renderer.xr.getController(0);
         controller.addEventListener('select', () => {
           if (reticle.visible && !textPlaced) {
@@ -77,30 +80,34 @@
         renderer.setAnimationLoop(render);
       }
 
+      // Fonction pour placer le texte au niveau du réticule
       function placeTextAtReticle() {
         const loader = new THREE.FontLoader();
         loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', (font) => {
           const textGeo = new THREE.TextGeometry('arroser cette plante', {
             font: font,
-            size: 0.30, // 30cm = 0.30m (taille du texte comme un pied)
-            height: 0.005, // épaisseur du texte
+            size: 0.30, // Taille du texte équivalente à un pied (30.48cm = 0.30m)
+            height: 0.005, // Épaisseur du texte
           });
 
           const textMat = new THREE.MeshBasicMaterial({ color: 0x000000 }); // Texte noir
           const textMesh = new THREE.Mesh(textGeo, textMat);
 
+          // Récupération de la position du réticule et placement du texte
           const matrix = new THREE.Matrix4().copy(reticle.matrix);
           textMesh.applyMatrix4(matrix);
 
           scene.add(textMesh);
           textPlaced = true;
 
+          // Affichage du message "Texte placé !"
           msg.textContent = 'Texte placé !';
           msg.style.display = 'block';
           setTimeout(() => msg.style.display = 'none', 2000);
         });
       }
 
+      // Fonction de rendu
       function render(_, frame) {
         if (frame) {
           const referenceSpace = renderer.xr.getReferenceSpace();
@@ -121,6 +128,7 @@
             hitTestSourceRequested = true;
           }
 
+          // Effectuer un test de détection de surface avec le hit-test
           if (hitTestSource) {
             const hitTestResults = frame.getHitTestResults(hitTestSource);
             if (hitTestResults.length > 0) {
