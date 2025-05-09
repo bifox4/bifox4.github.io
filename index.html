@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
-  <title>AR avec image fixe</title>
+  <title>App AR sans marqueur</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     body {
@@ -73,7 +73,6 @@
     let hitTestSource = null;
     let hitTestSourceRequested = false;
 
-    const ui = document.getElementById('ui');
     const startBtn = document.getElementById('start-button');
     const fixBtn = document.getElementById('fix-button');
     const msg = document.getElementById('message');
@@ -104,12 +103,14 @@
       scene.add(reticle);
 
       controller = renderer.xr.getController(0);
-      controller.addEventListener('select', () => {
-        if (!imageMesh && imageTexture && reticle.visible) {
+      scene.add(controller);
+
+      // Support tactile mobile
+      renderer.domElement.addEventListener('click', () => {
+        if (!imageMesh && imageTexture && reticle.visible && !isImageFixed) {
           createImageMesh();
         }
       });
-      scene.add(controller);
 
       renderer.setAnimationLoop(render);
     }
@@ -147,7 +148,7 @@
     fixBtn.addEventListener('click', () => {
       if (imageMesh) {
         isImageFixed = true;
-        showMessage('Image fixée !');
+        showMessage("Image fixée !");
       }
     });
 
