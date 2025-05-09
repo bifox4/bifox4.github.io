@@ -82,11 +82,11 @@
         loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', (font) => {
           const textGeo = new THREE.TextGeometry('arroser cette plante', {
             font: font,
-            size: 0.03,
-            height: 0.002,
+            size: 0.30, // 30cm = 0.30m (taille du texte comme un pied)
+            height: 0.005, // épaisseur du texte
           });
 
-          const textMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+          const textMat = new THREE.MeshBasicMaterial({ color: 0x000000 }); // Texte noir
           const textMesh = new THREE.Mesh(textGeo, textMat);
 
           const matrix = new THREE.Matrix4().copy(reticle.matrix);
@@ -139,3 +139,4 @@
     </script>
   </body>
 </html>
+
