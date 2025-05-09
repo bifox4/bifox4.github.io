@@ -2,8 +2,8 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
-  <title>AR Texte Fixe</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Texte AR Fixe</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     html, body {
       margin: 0;
@@ -59,6 +59,7 @@
         requiredFeatures: ['hit-test']
       }));
 
+      // Réticule vert
       const ringGeo = new THREE.RingGeometry(0.05, 0.06, 32).rotateX(-Math.PI / 2);
       const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
       reticle = new THREE.Mesh(ringGeo, ringMat);
@@ -69,16 +70,17 @@
       controller = renderer.xr.getController(0);
       scene.add(controller);
 
+      // Clic pour placer le texte
       renderer.domElement.addEventListener('click', () => {
         if (reticle.visible && !textPlaced) {
-          placeTextAboveReticle();
+          placeTextAtReticle();
         }
       });
 
       renderer.setAnimationLoop(render);
     }
 
-    function placeTextAboveReticle() {
+    function placeTextAtReticle() {
       const loader = new THREE.FontLoader();
       loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', (font) => {
         const textGeo = new THREE.TextGeometry('arroser cette plante', {
@@ -91,12 +93,7 @@
         const textMesh = new THREE.Mesh(textGeo, textMat);
 
         const matrix = new THREE.Matrix4().copy(reticle.matrix);
-        const position = new THREE.Vector3();
-        matrix.decompose(position, new THREE.Quaternion(), new THREE.Vector3());
-
-        position.y += 0.15; // 15 cm au-dessus
-        textMesh.position.copy(position);
-        textMesh.rotation.y = camera.rotation.y;
+        textMesh.applyMatrix4(matrix);
 
         scene.add(textMesh);
         textPlaced = true;
