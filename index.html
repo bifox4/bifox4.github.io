@@ -2,8 +2,8 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
-  <title>AR - Placement image</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AR Texte Fixe</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     html, body {
       margin: 0;
@@ -14,28 +14,6 @@
     }
     canvas {
       display: block;
-    }
-    #ui {
-      position: fixed;
-      top: 10px;
-      left: 10px;
-      z-index: 10;
-      background: rgba(255, 255, 255, 0.85);
-      padding: 10px;
-      border-radius: 10px;
-      width: 250px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    #start-button {
-      position: fixed;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 10;
-      font-size: 18px;
-      padding: 10px 20px;
     }
     #message {
       position: fixed;
@@ -52,37 +30,23 @@
   </style>
 </head>
 <body>
-  <div id="ui">
-    <input type="file" id="image-input" accept="image/*" />
-    <label for="scale-slider">Taille</label>
-    <input type="range" id="scale-slider" min="0.1" max="3" step="0.1" value="1" />
-    <label for="rotation-slider">Rotation</label>
-    <input type="range" id="rotation-slider" min="0" max="360" step="1" value="0" />
-  </div>
-  <button id="start-button">Start AR</button>
-  <div id="message">Image fixée !</div>
+  <div id="message">Texte placé !</div>
 
   <script type="module">
     import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js';
     import { ARButton } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/webxr/ARButton.js';
 
-    let scene, camera, renderer;
+    let camera, scene, renderer;
     let controller, reticle;
-    let imageMesh = null;
-    let imageTexture = null;
-    let imagePlaced = false;
     let hitTestSource = null;
     let hitTestSourceRequested = false;
+    let textPlaced = false;
 
-    const startBtn = document.getElementById('start-button');
     const msg = document.getElementById('message');
 
-    startBtn.addEventListener('click', () => {
-      startAR();
-      startBtn.style.display = 'none';
-    });
+    init();
 
-    async function startAR() {
+    function init() {
       scene = new THREE.Scene();
       camera = new THREE.PerspectiveCamera();
 
@@ -105,71 +69,43 @@
       controller = renderer.xr.getController(0);
       scene.add(controller);
 
-      // Clic pour placer + fixer l’image
       renderer.domElement.addEventListener('click', () => {
-        if (!imagePlaced && imageTexture && reticle.visible) {
-          createAndFixImage();
+        if (reticle.visible && !textPlaced) {
+          placeTextAboveReticle();
         }
       });
 
       renderer.setAnimationLoop(render);
     }
 
-    function createAndFixImage() {
-      const geometry = new THREE.PlaneGeometry(0.4, 0.3);
-      const material = new THREE.MeshBasicMaterial({
-        map: imageTexture,
-        transparent: true,
-        side: THREE.DoubleSide
+    function placeTextAboveReticle() {
+      const loader = new THREE.FontLoader();
+      loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', (font) => {
+        const textGeo = new THREE.TextGeometry('arroser cette plante', {
+          font: font,
+          size: 0.03,
+          height: 0.002,
+        });
+
+        const textMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const textMesh = new THREE.Mesh(textGeo, textMat);
+
+        const matrix = new THREE.Matrix4().copy(reticle.matrix);
+        const position = new THREE.Vector3();
+        matrix.decompose(position, new THREE.Quaternion(), new THREE.Vector3());
+
+        position.y += 0.15; // 15 cm au-dessus
+        textMesh.position.copy(position);
+        textMesh.rotation.y = camera.rotation.y;
+
+        scene.add(textMesh);
+        textPlaced = true;
+
+        msg.textContent = 'Texte placé !';
+        msg.style.display = 'block';
+        setTimeout(() => msg.style.display = 'none', 2000);
       });
-      imageMesh = new THREE.Mesh(geometry, material);
-      imageMesh.matrixAutoUpdate = false;
-      imageMesh.applyMatrix4(reticle.matrix);
-      imageMesh.matrixAutoUpdate = true;
-      scene.add(imageMesh);
-      updateScale();
-      updateRotation();
-      imagePlaced = true;
-      showMessage("Image fixée !");
     }
-
-    function updateScale() {
-      const scale = parseFloat(document.getElementById('scale-slider').value);
-      if (imageMesh && !imagePlaced) {
-        imageMesh.scale.set(scale, scale, scale);
-      }
-    }
-
-    function updateRotation() {
-      const rotation = parseFloat(document.getElementById('rotation-slider').value);
-      if (imageMesh && !imagePlaced) {
-        imageMesh.rotation.y = THREE.MathUtils.degToRad(rotation);
-      }
-    }
-
-    function showMessage(text) {
-      msg.textContent = text;
-      msg.style.display = 'block';
-      setTimeout(() => msg.style.display = 'none', 2000);
-    }
-
-    document.getElementById('image-input').addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        const img = new Image();
-        img.onload = () => {
-          imageTexture = new THREE.Texture(img);
-          imageTexture.needsUpdate = true;
-        };
-        img.src = evt.target.result;
-      };
-      reader.readAsDataURL(file);
-    });
-
-    document.getElementById('scale-slider').addEventListener('input', updateScale);
-    document.getElementById('rotation-slider').addEventListener('input', updateRotation);
 
     function render(_, frame) {
       if (frame) {
@@ -182,10 +118,12 @@
               hitTestSource = source;
             });
           });
+
           session.addEventListener('end', () => {
             hitTestSourceRequested = false;
             hitTestSource = null;
           });
+
           hitTestSourceRequested = true;
         }
 
