@@ -1,144 +1,141 @@
 <!DOCTYPE html>
 <html lang="fr">
-<head>
-  <meta charset="UTF-8" />
-  <title>Texte AR Fixe</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      font-family: sans-serif;
-      background: black;
-    }
-    canvas {
-      display: block;
-    }
-    #message {
-      position: fixed;
-      bottom: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0, 0, 0, 0.8);
-      color: white;
-      padding: 8px 16px;
-      border-radius: 8px;
-      z-index: 11;
-      display: none;
-    }
-  </style>
-</head>
-<body>
-  <div id="message">Texte placé !</div>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Texte AR Fixe</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        font-family: sans-serif;
+        background: black;
+      }
+      canvas {
+        display: block;
+      }
+      #message {
+        position: fixed;
+        bottom: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 8px 16px;
+        border-radius: 8px;
+        z-index: 11;
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="message">Texte placé !</div>
 
-  <script type="module">
-    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js';
-    import { ARButton } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/webxr/ARButton.js';
+    <script type="module">
+      import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js';
+      import { ARButton } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/webxr/ARButton.js';
 
-    let camera, scene, renderer;
-    let controller, reticle;
-    let hitTestSource = null;
-    let hitTestSourceRequested = false;
-    let textPlaced = false;
+      let camera, scene, renderer;
+      let controller, reticle;
+      let hitTestSource = null;
+      let hitTestSourceRequested = false;
+      let textPlaced = false;
 
-    const msg = document.getElementById('message');
+      const msg = document.getElementById('message');
 
-    init();
+      init();
 
-    function init() {
-      scene = new THREE.Scene();
-      camera = new THREE.PerspectiveCamera();
+      function init() {
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera();
 
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.xr.enabled = true;
-      document.body.appendChild(renderer.domElement);
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.xr.enabled = true;
+        document.body.appendChild(renderer.domElement);
 
-      document.body.appendChild(ARButton.createButton(renderer, {
-        requiredFeatures: ['hit-test']
-      }));
+        document.body.appendChild(ARButton.createButton(renderer, {
+          requiredFeatures: ['hit-test']
+        }));
 
-      // Réticule vert
-      const ringGeo = new THREE.RingGeometry(0.05, 0.06, 32).rotateX(-Math.PI / 2);
-      const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-      reticle = new THREE.Mesh(ringGeo, ringMat);
-      reticle.matrixAutoUpdate = false;
-      reticle.visible = false;
-      scene.add(reticle);
+        const ringGeo = new THREE.RingGeometry(0.05, 0.06, 32).rotateX(-Math.PI / 2);
+        const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+        reticle = new THREE.Mesh(ringGeo, ringMat);
+        reticle.matrixAutoUpdate = false;
+        reticle.visible = false;
+        scene.add(reticle);
 
-      controller = renderer.xr.getController(0);
-      scene.add(controller);
-
-      // Clic pour placer le texte
-      renderer.domElement.addEventListener('click', () => {
-        if (reticle.visible && !textPlaced) {
-          placeTextAtReticle();
-        }
-      });
-
-      renderer.setAnimationLoop(render);
-    }
-
-    function placeTextAtReticle() {
-      const loader = new THREE.FontLoader();
-      loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', (font) => {
-        const textGeo = new THREE.TextGeometry('arroser cette plante', {
-          font: font,
-          size: 0.03,
-          height: 0.002,
-        });
-
-        const textMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-        const textMesh = new THREE.Mesh(textGeo, textMat);
-
-        const matrix = new THREE.Matrix4().copy(reticle.matrix);
-        textMesh.applyMatrix4(matrix);
-
-        scene.add(textMesh);
-        textPlaced = true;
-
-        msg.textContent = 'Texte placé !';
-        msg.style.display = 'block';
-        setTimeout(() => msg.style.display = 'none', 2000);
-      });
-    }
-
-    function render(_, frame) {
-      if (frame) {
-        const referenceSpace = renderer.xr.getReferenceSpace();
-        const session = renderer.xr.getSession();
-
-        if (!hitTestSourceRequested) {
-          session.requestReferenceSpace('viewer').then((viewerSpace) => {
-            session.requestHitTestSource({ space: viewerSpace }).then((source) => {
-              hitTestSource = source;
-            });
-          });
-
-          session.addEventListener('end', () => {
-            hitTestSourceRequested = false;
-            hitTestSource = null;
-          });
-
-          hitTestSourceRequested = true;
-        }
-
-        if (hitTestSource) {
-          const hitTestResults = frame.getHitTestResults(hitTestSource);
-          if (hitTestResults.length > 0) {
-            const hit = hitTestResults[0];
-            const pose = hit.getPose(referenceSpace);
-            reticle.visible = true;
-            reticle.matrix.fromArray(pose.transform.matrix);
-          } else {
-            reticle.visible = false;
+        controller = renderer.xr.getController(0);
+        controller.addEventListener('select', () => {
+          if (reticle.visible && !textPlaced) {
+            placeTextAtReticle();
           }
-        }
+        });
+        scene.add(controller);
+
+        renderer.setAnimationLoop(render);
       }
 
-      renderer.render(scene, camera);
-    }
-  </script>
-</body>
+      function placeTextAtReticle() {
+        const loader = new THREE.FontLoader();
+        loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', (font) => {
+          const textGeo = new THREE.TextGeometry('arroser cette plante', {
+            font: font,
+            size: 0.03,
+            height: 0.002,
+          });
+
+          const textMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+          const textMesh = new THREE.Mesh(textGeo, textMat);
+
+          const matrix = new THREE.Matrix4().copy(reticle.matrix);
+          textMesh.applyMatrix4(matrix);
+
+          scene.add(textMesh);
+          textPlaced = true;
+
+          msg.textContent = 'Texte placé !';
+          msg.style.display = 'block';
+          setTimeout(() => msg.style.display = 'none', 2000);
+        });
+      }
+
+      function render(_, frame) {
+        if (frame) {
+          const referenceSpace = renderer.xr.getReferenceSpace();
+          const session = renderer.xr.getSession();
+
+          if (!hitTestSourceRequested) {
+            session.requestReferenceSpace('viewer').then((viewerSpace) => {
+              session.requestHitTestSource({ space: viewerSpace }).then((source) => {
+                hitTestSource = source;
+              });
+            });
+
+            session.addEventListener('end', () => {
+              hitTestSourceRequested = false;
+              hitTestSource = null;
+            });
+
+            hitTestSourceRequested = true;
+          }
+
+          if (hitTestSource) {
+            const hitTestResults = frame.getHitTestResults(hitTestSource);
+            if (hitTestResults.length > 0) {
+              const hit = hitTestResults[0];
+              const pose = hit.getPose(referenceSpace);
+              reticle.visible = true;
+              reticle.matrix.fromArray(pose.transform.matrix);
+            } else {
+              reticle.visible = false;
+            }
+          }
+        }
+
+        renderer.render(scene, camera);
+      }
+    </script>
+  </body>
 </html>
