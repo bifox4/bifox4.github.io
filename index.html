@@ -2,28 +2,35 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
-  <title>App AR sans marqueur</title>
+  <title>AR Image Placement</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
-    body {
+    html, body {
       margin: 0;
+      padding: 0;
       overflow: hidden;
       font-family: sans-serif;
+      background-color: black;
+    }
+    canvas {
+      display: block;
     }
     #ui {
       position: fixed;
       top: 10px;
       left: 10px;
-      z-index: 2;
-      background: rgba(255, 255, 255, 0.8);
+      z-index: 10;
+      background: rgba(255, 255, 255, 0.85);
       padding: 10px;
-      border-radius: 8px;
+      border-radius: 10px;
+      width: 250px;
       display: flex;
       flex-direction: column;
-      gap: 5px;
-      width: 250px;
+      gap: 8px;
     }
-    #ui input, #ui button {
+    #ui input[type="range"],
+    #ui input[type="file"],
+    #ui button {
       width: 100%;
     }
     #start-button {
@@ -31,7 +38,7 @@
       bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
-      z-index: 3;
+      z-index: 10;
       font-size: 18px;
       padding: 10px 20px;
     }
@@ -40,11 +47,11 @@
       bottom: 10px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(0,0,0,0.8);
-      color: #fff;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
       padding: 8px 16px;
       border-radius: 8px;
-      z-index: 4;
+      z-index: 11;
       display: none;
     }
   </style>
@@ -56,7 +63,7 @@
     <input type="range" id="scale-slider" min="0.1" max="3" step="0.1" value="1" />
     <label for="rotation-slider">Rotation</label>
     <input type="range" id="rotation-slider" min="0" max="360" step="1" value="0" />
-    <button id="fix-button">Fixer l'image</button>
+    <button id="fix-button">Fixer l’image</button>
   </div>
   <button id="start-button">Start AR</button>
   <div id="message">Image fixée !</div>
@@ -105,7 +112,6 @@
       controller = renderer.xr.getController(0);
       scene.add(controller);
 
-      // Support tactile mobile
       renderer.domElement.addEventListener('click', () => {
         if (!imageMesh && imageTexture && reticle.visible && !isImageFixed) {
           createImageMesh();
@@ -117,7 +123,11 @@
 
     function createImageMesh() {
       const geometry = new THREE.PlaneGeometry(0.4, 0.3);
-      const material = new THREE.MeshBasicMaterial({ map: imageTexture, transparent: true, side: THREE.DoubleSide });
+      const material = new THREE.MeshBasicMaterial({
+        map: imageTexture,
+        transparent: true,
+        side: THREE.DoubleSide
+      });
       imageMesh = new THREE.Mesh(geometry, material);
       imageMesh.matrixAutoUpdate = false;
       imageMesh.applyMatrix4(reticle.matrix);
