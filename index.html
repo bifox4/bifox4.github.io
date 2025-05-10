@@ -1,6 +1,206 @@
 <!DOCTYPE html>
+
 <html lang="fr">
-  <head>
+
+    <head>
+
+        <meta charset="UTF-8">
+
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+        <title>Jardin Connecté</title>
+
+        <link rel="stylesheet" href="styles.css">
+
+        <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+
+        <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+
+        <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+
+        <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet"></script>
+
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+        <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    </head>
+
+<body class="background-image">
+
+
+
+  <!-- Section principale -->
+
+<section id="home-section" class="section active">
+
+    <div class="content-container">
+
+
+
+        <!-- Rectangle Calendrier -->
+
+        <div class="box calendrier">
+
+            <h2>🌱 Calendrier des 5 prochains jours 🌱</h2>
+
+        </div>
+
+
+
+        <h2>📅 Planning global d’arrosage</h2>
+
+  <div id="calendar">Clique sur "Analyser" pour générer le planning.</div>
+
+
+
+        <!-- Rectangle Conseils -->
+
+        <div class="box conseil">
+
+            <h3>🌿 Conseil du jour :</h3>
+
+            <p id="conseil-texte">Cliquez sur un jour pour obtenir un conseil !</p>
+
+        </div>
+
+ 
+
+    </div>
+
+</section>
+
+  
+
+
+
+     <!-- Section Mes Plantes -->
+
+     <section id="plants-section" class="section">
+
+        <h1>🌿 Jardin Connecté avec Arduino & IA</h1>
+
+
+
+  <button onclick="connecterArduino()">🔌 Connecter à l'Arduino</button>
+
+  <div id="donnees">Aucune donnée reçue.</div>
+
+
+
+  <div style="margin-top: 20px;">
+
+    <input type="text" id="nomPlante" placeholder="Nom de la plante" />
+
+    <button onclick="ajouterPlanteDepuisArduino()">➕ Ajouter cette plante</button>
+
+  </div>
+
+
+
+  <div id="plantes"></div>
+
+  <button onclick="analyserToutes()">🔍 Analyser toutes les plantes</button>
+
+    </section>
+
+
+
+    <!-- Section À Propos -->
+
+    <section id="about-section" class="section">
+
+        <h2>ℹ️ À Propos ℹ️</h2>
+
+        <h3>EQUIPE DE DEVELOPPMENT </h3>
+
+        <h4> 
+
+            <br>
+
+            Ianis   > Financeur et Developpeur système embarqué <br>
+
+            Léane   > ingénieur en systèmes embarqués<br>
+
+            Tiradol > Dévellopeur web <br>
+
+            Blanche > business analyst <br>
+
+            Tedja   > Designeuse 3D <br>
+
+            Lina    > Designeuse 3D <br>
+
+            Hugo    > Consultant en innovation</h4>
+
+      </section>
+
+    </section>
+
+
+
+    <!-- section analyse des plantes  -->
+
+    <section id="ar-section" class="section">
+
+        <h2>🕶️ Mes Plantes 🕶️</h2>
+
+        <div id="camera-container">
+
+            <video id="video" autoplay muted playsinline></video>
+
+            <canvas id="ar-overlay"></canvas>
+
+        </div>
+
+
+
+        <div id="info-box">
+
+            <h3 id="plant-name">Nom scientifique & commun</h3>
+
+        </div>
+
+
+
+        <div class="btn-container">
+
+            <button id="start-button" class="btn-start">Démarrer la caméra</button>
+
+            <button id="analyze-button" class="btn-analyze">Analyser</button>
+
+        </div>
+
+
+
+        <div class="btn-container">
+
+            <button class="btn-camera" onclick="switchCamera('environment')">Caméra arrière</button>
+
+            <button class="btn-camera" onclick="switchCamera('user')">Caméra avant</button>
+
+        </div>
+
+        <div class="btn-container">
+
+        <button id="add-plant-from-ar" class="btn-add-plant" style="display: none;">➕ Ajouter à Mon Jardin</button>
+
+    </div>
+
+
+
+    </section>
+
+
+   <!-- section analyse des plantes  -->
+    <section id="RA-section" class="section">
+  <h2>🚀 Réalité Augmentée 🚀</h2>
+  <div id="ar-container">
+    
+  </div>
+</section>
+
+        
+	<head>
     <meta charset="UTF-8" />
     <title>Image AR - Arroser cette plante</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -39,10 +239,11 @@
         document.body.appendChild(renderer.domElement);
 
         // WebXR ARButton
-        document.body.appendChild(ARButton.createButton(renderer, {
-          requiredFeatures: ['hit-test']
+        const arContainer = document.getElementById('ar-container');
+        arContainer.appendChild(ARButton.createButton(renderer, {
+        requiredFeatures: ['hit-test']
         }));
-
+        
         // Réticule vert
         const ringGeo = new THREE.RingGeometry(0.05, 0.06, 32).rotateX(-Math.PI / 2);
         const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
@@ -133,4 +334,31 @@
       }
     </script>
   </body>
+ </div>
+</section>
+
+
+
+<nav class="navbar">
+
+    <button class="nav-btn" data-target="home-section" onclick="affpas()"><span class="emoji">🏡</span></button>
+
+    <button class="nav-btn" data-target="ar-section" onclick="affpas()"><span class="emoji">🕶️</span></button>
+
+    <button class="nav-btn" data-target="plants-section" onclick="affpas()"><span class="emoji">🌿</span></button>
+
+    <button class="nav-btn" data-target="RA-section" onclick="affok()"><span class="emoji">🚀</span></button>
+
+    <button class="nav-btn" data-target="about-section" onclick="affpas()"><span class="emoji">❔</span></button>
+
+</nav>
+
+    
+
+<script src="script.js" defer></script>
+
+</body>
+
 </html>
+
+ 
