@@ -64,30 +64,37 @@
       }
 
       function placeImageAtReticle() {
-        const textureLoader = new THREE.TextureLoader();
-        textureLoader.load(
-          // 👉 Ton image hébergée
-          'https://i.postimg.cc/ht3xvhJ6/a0893b32-98cd-4243-898e-97450f7ffdea.png',
-          (texture) => {
-            const width = 0.35;  // 30 cm
-            const height = 0.25; // 10 cm
+  const textureLoader = new THREE.TextureLoader();
+  textureLoader.load(
+    'https://i.postimg.cc/ht3xvhJ6/a0893b32-98cd-4243-898e-97450f7ffdea.png',
+    (texture) => {
+      const width = 0.35;  // 30 cm
+      const height = 0.25; // 20 cm
 
-            const geometry = new THREE.PlaneGeometry(width, height);
-            const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
-            const imagePlane = new THREE.Mesh(geometry, material);
+      const geometry = new THREE.PlaneGeometry(width, height);
+      const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+      const imagePlane = new THREE.Mesh(geometry, material);
 
-            imagePlane.matrixAutoUpdate = false;
-            imagePlane.matrix.copy(reticle.matrix); // Place image à l'endroit du reticule
-            scene.add(imagePlane);
+      imagePlane.matrixAutoUpdate = false;
+      imagePlane.matrix.copy(reticle.matrix);
 
-            imagePlaced = true;
-          },
-          undefined,
-          (err) => {
-            console.error("Erreur chargement image :", err);
-          }
-        );
-      }
+      // Décalage vertical de 0.5 m
+      const position = new THREE.Vector3();
+      const quaternion = new THREE.Quaternion();
+      const scale = new THREE.Vector3();
+      reticle.matrix.decompose(position, quaternion, scale);
+      position.y += 0.5;
+      imagePlane.matrix.compose(position, quaternion, scale);
+
+      scene.add(imagePlane);
+      imagePlaced = true;
+    },
+    undefined,
+    (err) => {
+      console.error("Erreur chargement image :", err);
+    }
+  );
+}
 
       function render(_, frame) {
         if (frame) {
