@@ -243,7 +243,8 @@
         arContainer.appendChild(ARButton.createButton(renderer, {
         requiredFeatures: ['hit-test']
         }));
-        
+
+
         // Réticule vert
         const ringGeo = new THREE.RingGeometry(0.05, 0.06, 32).rotateX(-Math.PI / 2);
         const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
@@ -332,14 +333,12 @@
 
         renderer.render(scene, camera);
       }
-    </script>
+       </script>
   </body>
- </div>
-</section>
 
 
 
-<nav class="navbar">
+  <nav class="navbar">
 
     <button class="nav-btn" data-target="home-section" onclick="affpas()"><span class="emoji">🏡</span></button>
 
