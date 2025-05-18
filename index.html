@@ -75,30 +75,10 @@
 	
 	
 <section id="plants-section" class="section">
-   </div>
-    </section>
-     <h1 class="text-success">🌿 Jardin Connecté </h1>
-
-    <button class="btn btn-primary" onclick="connectSerial()">🔌 Se connecter à l'Arduino</button>
-    <button class="btn btn-info" onclick="readOnce()">🔄 Lire les données</button>
-    <button class="btn btn-success" onclick="envoyerCommande('1')">Allumer la pompe</button>
-    <button class="btn btn-danger" onclick="envoyerCommande('0')">Éteindre la pompe</button>
-
-    <div class="mt-3">
-      <label>Nom de la plante :</label>
-      <input type="text" id="plante" class="form-control" placeholder="ex: fraise, menthe, tomate...">
-    </div>
-
-    <div id="donnees" class="mt-3">
-      <div class="donnee">🌡 Température : <span id="temp">--</span> °C</div>
-      <div class="donnee">💧 Humidité sol : <span id="humidite">--</span> %</div>
-      <div class="donnee">☀️ Luminosité : <span id="lumiere">--</span></div>
-      <div class="donnee">🚰 Pompe : <span id="pompe">--</span></div>
-    </div>
-
-    <button class="btn btn-warning mt-3" onclick="analyserDonnees()">🧠 Analyser les données</button>
-    <div id="response"></div>
-  </div>
+ <h2> jardin connécté </h2>
+ <div id="text-success" >
+ </div>
+</section>
 
   <script>
     let port, reader, writer;
@@ -202,8 +182,7 @@ En te basant sur ces données et les besoins typiques de cette plante, crée un 
       }
     }
   </script>
-</div>
-</section>
+
 
 
 
