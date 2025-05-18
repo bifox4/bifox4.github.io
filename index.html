@@ -429,8 +429,27 @@ En te basant sur ces données et les besoins typiques de cette plante, crée un 
         });
 
         const data = await res.json();
-        const markdownText = data.choices?.[0]?.message?.content || 'Pas de réponse.';
-        responseDiv.innerHTML = marked.parse(markdownText);
+        let markdownText = data.choices?.[0]?.message?.content;
+
+if (!markdownText || markdownText.trim() === '') {
+    // Si vide → créer planning vide
+    const jours = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+    const aujourdHui = new Date();
+    let tableau = `### 📅 Planning vide (aucune donnée reçue)\n\n`;
+    tableau += "| Jour | Heure | Action |\n|------|-------|--------|\n";
+
+    for (let i = 0; i < 5; i++) {
+        const jourIndex = (aujourdHui.getDay() + i) % 7;
+        const jourNom = jours[jourIndex];
+        tableau += `| ${jourNom} | --:-- | - |\n`;
+    }
+
+    markdownText = tableau;
+}
+const htmlContent = marked.parse(markdownText);
+responseDiv.innerHTML = htmlContent;
+document.getElementById("calendar").innerHTML = htmlContent;
+
     } catch (err) {
         responseDiv.innerHTML = '❌ Erreur lors de l’analyse : ' + err.message;
     }
