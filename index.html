@@ -78,29 +78,148 @@
 
      <section id="plants-section" class="section">
 
-        <h1>🌿 Jardin Connecté avec Arduino & IA</h1>
+         </div>
+</section>
+	<head>
+  <meta charset="UTF-8" />
+  <title>Jardin Connecté DS18B20</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.3.1/css/bootstrap.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    body { background: #f5f5f5; padding: 20px; }
+    .donnee { font-weight: bold; margin: 10px 0; }
+    #response { margin-top: 30px; padding: 15px; background: #fff; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 class="text-success">🌿 Jardin Connecté </h1>
 
+    <button class="btn btn-primary" onclick="connectSerial()">🔌 Se connecter à l'Arduino</button>
+    <button class="btn btn-info" onclick="readOnce()">🔄 Lire les données</button>
+    <button class="btn btn-success" onclick="envoyerCommande('1')">Allumer la pompe</button>
+    <button class="btn btn-danger" onclick="envoyerCommande('0')">Éteindre la pompe</button>
 
+    <div class="mt-3">
+      <label>Nom de la plante :</label>
+      <input type="text" id="plante" class="form-control" placeholder="ex: fraise, menthe, tomate...">
+    </div>
 
-  <button onclick="connecterArduino()">🔌 Connecter à l'Arduino</button>
+    <div id="donnees" class="mt-3">
+      <div class="donnee">🌡 Température : <span id="temp">--</span> °C</div>
+      <div class="donnee">💧 Humidité sol : <span id="humidite">--</span> %</div>
+      <div class="donnee">☀️ Luminosité : <span id="lumiere">--</span></div>
+      <div class="donnee">🚰 Pompe : <span id="pompe">--</span></div>
+    </div>
 
-  <div id="donnees">Aucune donnée reçue.</div>
-
-
-
-  <div style="margin-top: 20px;">
-
-    <input type="text" id="nomPlante" placeholder="Nom de la plante" />
-
-    <button onclick="ajouterPlanteDepuisArduino()">➕ Ajouter cette plante</button>
-
+    <button class="btn btn-warning mt-3" onclick="analyserDonnees()">🧠 Analyser les données</button>
+    <div id="response"></div>
   </div>
 
+  <script>
+    let port, reader, writer;
+    let donnees = {};
 
+    async function connectSerial() {
+      try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 9600 });
 
-  <div id="plantes"></div>
+        const decoder = new TextDecoderStream();
+        const encoder = new TextEncoderStream();
 
-  <button onclick="analyserToutes()">🔍 Analyser toutes les plantes</button>
+        port.readable.pipeTo(decoder.writable);
+        reader = decoder.readable.getReader();
+
+        encoder.readable.pipeTo(port.writable);
+        writer = encoder.writable.getWriter();
+
+        alert("✅ Connecté à l'Arduino !");
+      } catch (e) {
+        alert("Erreur de connexion : " + e);
+      }
+    }
+
+    async function readOnce() {
+      if (!reader) return alert("Connecte-toi d'abord !");
+      const { value } = await reader.read();
+      if (!value) return;
+
+      const data = value.trim();
+      console.log(">>", data);
+
+      const erreurTemp = data.includes("Erreur capteur");
+      const regex = /Température: ([\d.]+|Erreur capteur).*?Humidité sol: (\d+).*?Luminosité: (\d+).*?Pompe: (ON|OFF)/i;
+      const match = data.match(regex);
+
+      if (match) {
+        document.getElementById("temp").textContent = erreurTemp ? "Erreur" : match[1];
+        document.getElementById("humidite").textContent = match[2];
+        document.getElementById("lumiere").textContent = match[3];
+        document.getElementById("pompe").textContent = match[4];
+
+        if (!erreurTemp) {
+          donnees = {
+            temperature: match[1],
+            humidite: match[2],
+            lumiere: match[3],
+            pompe: match[4]
+          };
+        }
+      }
+    }
+
+    async function envoyerCommande(cmd) {
+      if (!writer) return alert("Connecte-toi d'abord !");
+      try {
+        await writer.write(cmd);
+        console.log("Commande envoyée :", cmd);
+      } catch (err) {
+        console.error("Erreur envoi :", err);
+      }
+    }
+
+    async function analyserDonnees() {
+      const plante = document.getElementById("plante").value.trim();
+      if (!plante || !donnees.temperature) {
+        return alert("Remplis le nom de la plante et lis les données d'abord.");
+      }
+
+      const prompt = `J entretien un(e) ${plante}. Voici les données actuelles du jardin :
+Température: ${donnees.temperature}°C
+Humidité du sol: ${donnees.humidite}%
+Luminosité: ${donnees.lumiere}
+
+En te basant sur ces données et les besoins typiques de cette plante, crée un calendrier intelligent d'arrosage pour dire quand activer l'arosage automatique et sous forme de tableau et donne moi des conseils d'entretient.`;
+
+      const responseDiv = document.getElementById("response");
+      responseDiv.innerHTML = "⏳ Analyse en cours...";
+
+      try {
+        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            Authorization: 'Bearer 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',
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://www.e-jardin.com',
+            'X-Title': 'e-jardin'
+          },
+          body: JSON.stringify({
+            model: 'deepseek/deepseek-r1:free',
+            messages: [{ role: 'user', content: prompt }]
+          })
+        });
+
+        const data = await res.json();
+        const markdownText = data.choices?.[0]?.message?.content || 'Pas de réponse.';
+        responseDiv.innerHTML = marked.parse(markdownText);
+      } catch (err) {
+        responseDiv.innerHTML = 'Erreur : ' + err.message;
+      }
+    }
+  </script>
+</body>
 
     </section>
 
