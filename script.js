@@ -390,3 +390,25 @@ const plantDatabase = {
         }
     });
 
+function ajouterPlanteDepuisArduino() {
+    const nom = document.getElementById("plante").value.trim();
+    if (!nom) return alert("Entrez un nom de plante");
+
+    const id = compteur++;
+    const div = document.createElement('div');
+    div.setAttribute = ("id", "cadre");
+    div.className = "plante-entry";
+    div.id = `plante-${id}`;
+    div.innerHTML = `
+      <strong>${nom}</strong><br>
+      Temp: ${currentData.temperature} °C, Hum: ${currentData.humidite} %, Lum: ${currentData.luminosite}<br>
+      <div id="reponse-${id}">🧠 En attente d'analyse...</div>
+    `;
+    div.dataset.nom = nom;
+    div.dataset.temp = currentData.temperature;
+    div.dataset.hum = currentData.humidite;
+    div.dataset.lum = currentData.luminosite;
+
+    document.getElementById("plantes").appendChild(div);
+    document.getElementById("plante").value = "";
+  }
