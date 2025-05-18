@@ -1,5 +1,5 @@
 document.addEventListener("DOMContentLoaded", () => {
-    const joursSemaine = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+    const joursSemaine = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"]; 
 
     function afficherConseil(jour) {
         const conseils = {
