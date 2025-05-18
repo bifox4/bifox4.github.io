@@ -7,7 +7,7 @@ document.addEventListener("DOMContentLoaded", () => {
             "Mar": "Veuillez vous connecter à un boitier E-Jardin pour commencer",
             "Mer": "Veuillez vous connecter à un boitier E-Jardin pour commencer",
             "Jeu": "Veuillez vous connecter à un boitier E-Jardin pour commencer",
-            "Ven": "Veuillez vous connecter à un boitier E-Jardin pour commencer",
+            "Ven": "Veuillez vous connecter à un boitier E-Jardin pour commencer", 
             "Sam": "Veuillez vous connecter à un boitier E-Jardin pour commencer",
             "Dim": "Veuillez vous connecter à un boitier E-Jardin pour commencer"
         };
