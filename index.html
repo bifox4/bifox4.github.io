@@ -93,6 +93,8 @@
       <label>Nom de la plante :</label>
       <input type="text" id="plante" class="form-control" placeholder="ex: fraise, menthe, tomate...">
       <button onclick="ajouterPlanteDepuisArduino()">ajouter</button>
+      <div id="plantes" class="liste-plantes"></div>
+
     </div>
 
     <div id="donnees" class="mt-3">
@@ -167,10 +169,9 @@
         </div>
 
         <div class="btn-container">
+  <button id="add-plant-from-ar" class="btn-add-plant" style="display: none;">➕ Ajouter à Mon Jardin</button>
+</div>
 
-        <button id="add-plant-from-ar" class="btn-add-plant" style="display: none;">➕ Ajouter à Mon Jardin</button>
-
-    </div>
 
 
 
@@ -309,15 +310,15 @@
 
   <nav class="navbar">
 
-    <button class="nav-btn" data-target="home-section" onclick="affpas()"><span class="emoji">🏡</span></button>
+    <button class="nav-btn" data-target="home-section"><span class="emoji">🏡</span></button>
 
-    <button class="nav-btn" data-target="ar-section" onclick="affpas()"><span class="emoji">🕶️</span></button>
+    <button class="nav-btn" data-target="ar-section" ><span class="emoji">🕶️</span></button>
 
-    <button class="nav-btn" data-target="plants-section" onclick="affpas()"><span class="emoji">🌿</span></button>
+    <button class="nav-btn" data-target="plants-section" ><span class="emoji">🌿</span></button>
 
-    <button class="nav-btn" data-target="RA-section" onclick="affok()"><span class="emoji">🚀</span></button>
+    <button class="nav-btn" data-target="RA-section"><span class="emoji">🚀</span></button>
 
-    <button class="nav-btn" data-target="about-section" onclick="affpas()"><span class="emoji">❔</span></button>
+    <button class="nav-btn" data-target="about-section" ><span class="emoji">❔</span></button>
 
 </nav>
 
@@ -392,42 +393,48 @@
     }
 
     async function analyserDonnees() {
-      const plante = document.getElementById("plante").value.trim();
-      if (!plante || !donnees.temperature) {
-        return alert("Remplis le nom de la plante et lis les données d'abord.");
-      }
+    const plante = document.getElementById("plante").value.trim();
+    if (!plante) {
+        return alert("Veuillez entrer un nom de plante.");
+    }
 
-      const prompt = `J entretien un(e) ${plante}. Voici les données actuelles du jardin :
-Température: ${donnees.temperature}°C
-Humidité du sol: ${donnees.humidite}%
-Luminosité: ${donnees.lumiere}
+    // Données réelles si disponibles, sinon valeurs par défaut
+    const temperature = donnees?.temperature || "22";
+    const humidite = donnees?.humidite || "60";
+    const lumiere = donnees?.lumiere || "700";
 
-En te basant sur ces données et les besoins typiques de cette plante, crée un calendrier intelligent d'arrosage pour dire quand activer l'arosage automatique et sous forme de tableau et donne moi des conseils d'entretient.`;
+    const prompt = `J'entretiens un(e) ${plante}. Voici les données actuelles du jardin :
+Température : ${temperature}°C
+Humidité du sol : ${humidite}%
+Luminosité : ${lumiere}
 
-      const responseDiv = document.getElementById("response");
-      responseDiv.innerHTML = "⏳ Analyse en cours...";
+En te basant sur ces données et les besoins typiques de cette plante, crée un calendrier intelligent d'arrosage (sous forme de tableau) et donne-moi des conseils d'entretien.`;
 
-      try {
+    const responseDiv = document.getElementById("response");
+    responseDiv.innerHTML = "⏳ Analyse en cours...";
+
+    try {
         const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            Authorization: 'Bearer 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',
-            'Content-Type': 'application/json',
-            'HTTP-Referer': 'https://www.e-jardin.com',
-            'X-Title': 'e-jardin'
-          },
-          body: JSON.stringify({
-            model: 'deepseek/deepseek-r1:free',
-            messages: [{ role: 'user', content: prompt }]
-          })
+            method: 'POST',
+            headers: {
+                Authorization: 'Bearer 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',
+                'Content-Type': 'application/json',
+                'HTTP-Referer': 'https://www.e-jardin.com',
+                'X-Title': 'e-jardin'
+            },
+            body: JSON.stringify({
+                model: 'deepseek/deepseek-r1:free',
+                messages: [{ role: 'user', content: prompt }]
+            })
         });
 
         const data = await res.json();
         const markdownText = data.choices?.[0]?.message?.content || 'Pas de réponse.';
         responseDiv.innerHTML = marked.parse(markdownText);
-      } catch (err) {
-        responseDiv.innerHTML = 'Erreur : ' + err.message;
-      }
+    } catch (err) {
+        responseDiv.innerHTML = '❌ Erreur lors de l’analyse : ' + err.message;
     }
+}
+
   </script>
  

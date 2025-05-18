@@ -160,16 +160,38 @@ async function sendToPlantID(imageBlob) {
 }
 
 function processPlantData(data) {
-    if (data.status === "COMPLETED") {
-        const suggestion = data.result.classification.suggestions[0];
-        let detectedPlantScientific = suggestion.name;
-        let detectedPlantCommon = plantDatabase[detectedPlantScientific] || "Nom inconnu";
-        let confidenceScore = (suggestion.probability * 100).toFixed(2) + "%";
-
-        document.getElementById("plant-name").textContent = `${detectedPlantScientific} (${detectedPlantCommon}) - ${confidenceScore}`;
-        document.getElementById("info-box").style.display = "block";
+    if (!data.result || !data.result.classification || !data.result.classification.suggestions.length) {
+        alert("Aucune plante identifiée.");
+        return;
     }
+
+    const suggestion = data.result.classification.suggestions[0];
+    const detectedPlantScientific = suggestion.name;
+    const detectedPlantCommon = plantDatabase[detectedPlantScientific] || "Nom inconnu";
+    const confidenceScore = (suggestion.probability * 100).toFixed(2) + "%";
+
+    document.getElementById("plant-name").textContent =
+        `${detectedPlantScientific} (${detectedPlantCommon}) - ${confidenceScore}`;
+    document.getElementById("info-box").style.display = "block";
+
+    // Prendre une image de la vidéo
+    const tempCanvas = document.createElement("canvas");
+    tempCanvas.width = video.videoWidth;
+    tempCanvas.height = video.videoHeight;
+    const tempCtx = tempCanvas.getContext("2d");
+    tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+
+    // Stocker les infos pour plus tard
+    window.lastDetectedPlant = {
+        name: detectedPlantCommon,
+        scientific: detectedPlantScientific,
+        imageSrc: tempCanvas.toDataURL("image/png")
+    };
+
+    // Afficher le bouton
+    document.getElementById("add-plant-from-ar").style.display = "block";
 }
+
 
 // Base de données des plantes (extrait)
 const plantDatabase = {
@@ -398,19 +420,60 @@ function ajouterPlanteDepuisArduino() {
 
     const id = compteur++;
     const div = document.createElement('div');
-    div.setAttribute = ("id", "cadre");
     div.className = "plante-entry";
     div.id = `plante-${id}`;
+    div.style.border = "1px solid #ccc";
+    div.style.padding = "10px";
+    div.style.margin = "10px 0";
+    div.style.borderRadius = "8px";
+    div.style.background = "#fffef5";
+
+    // Utilise les données si elles existent, sinon met "non dispo"
+    const temperature = donnees?.temperature || "Non disponible";
+    const humidite = donnees?.humidite || "Non disponible";
+    const lumiere = donnees?.lumiere || "Non disponible";
+    const pompe = donnees?.pompe || "Non disponible";
+
     div.innerHTML = `
-      <strong>${nom}</strong><br>
-      Temp: ${currentData.temperature} °C, Hum: ${currentData.humidite} %, Lum: ${currentData.luminosite}<br>
-      <div id="reponse-${id}">🧠 En attente d'analyse...</div>
+      <strong>🌱 ${nom}</strong><br>
+      🌡 Température : ${temperature} °C<br>
+      💧 Humidité : ${humidite} %<br>
+      ☀️ Luminosité : ${lumiere}<br>
+      🚰 Pompe : ${pompe}<br>
     `;
-    div.dataset.nom = nom;
-    div.dataset.temp = currentData.temperature;
-    div.dataset.hum = currentData.humidite;
-    div.dataset.lum = currentData.luminosite;
 
     document.getElementById("plantes").appendChild(div);
     document.getElementById("plante").value = "";
-  }
+}
+
+
+document.getElementById("add-plant-from-ar").addEventListener("click", () => {
+    if (!window.lastDetectedPlant) {
+        alert("Aucune plante détectée !");
+        return;
+    }
+
+    const { name, scientific, imageSrc } = window.lastDetectedPlant;
+    const id = Date.now(); // identifiant unique basé sur l'heure
+    const div = document.createElement('div');
+
+    div.className = "plante-entry";
+    div.id = `plante-${id}`;
+    div.style.border = "1px solid #ccc";
+    div.style.padding = "10px";
+    div.style.margin = "10px 0";
+    div.style.borderRadius = "8px";
+    div.style.background = "#f0f8ff";
+
+    div.innerHTML = `
+      <img src="${imageSrc}" width="40" style="border-radius:5px; margin-right:10px;">
+      <strong>${name}</strong> <br>
+      🧬 ${scientific}
+    `;
+
+    document.getElementById("plantes").appendChild(div);
+
+    // Réinitialisation
+    document.getElementById("add-plant-from-ar").style.display = "none";
+    window.lastDetectedPlant = null;
+});
