@@ -390,6 +390,8 @@ const plantDatabase = {
         }
     });
 
+let compteur = 0;
+
 function ajouterPlanteDepuisArduino() {
     const nom = document.getElementById("plante").value.trim();
     if (!nom) return alert("Entrez un nom de plante");
