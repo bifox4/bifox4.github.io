@@ -389,9 +389,7 @@ const plantDatabase = {
             humidityChart.update();
         }
     });
-    <script>
-    let port, reader, writer;
-    let donnees = {};
+
 
     async function connectSerial() {
       try {
@@ -490,4 +488,4 @@ En te basant sur ces données et les besoins typiques de cette plante, crée un 
         responseDiv.innerHTML = 'Erreur : ' + err.message;
       }
     }
-  </script>
+ 
