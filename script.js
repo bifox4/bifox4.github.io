@@ -488,4 +488,4 @@ En te basant sur ces données et les besoins typiques de cette plante, crée un 
         responseDiv.innerHTML = 'Erreur : ' + err.message;
       }
     }
- 
+ });
